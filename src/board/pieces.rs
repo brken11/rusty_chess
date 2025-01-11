@@ -32,6 +32,13 @@ impl Piece {
         PIECES.iter().copied()
     }
 
+    pub fn get_color(&self) -> Color {
+        match self {
+            Piece::WhitePawn | Piece::WhiteRook | Piece::WhiteKnight | Piece::WhiteBishop | Piece::WhiteQueen | Piece::WhiteKing => Color::White,
+            Piece::BlackPawn | Piece::BlackRook | Piece::BlackKnight | Piece::BlackBishop | Piece::BlackQueen | Piece::BlackKing => Color::Black,
+        }
+    }
+
     pub fn to_index(&self) -> usize {
         *self as usize
     }
