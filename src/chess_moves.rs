@@ -70,8 +70,36 @@ impl ChessMove {
     }
 
     pub fn to_long_algebraic(&self) -> String {
-        let algebraic_notation = String::new();
+        let mut algebraic_notation = String::new();
+        let is_promotion = self.special.is_promotion();
 
+        algebraic_notation.push(
+        if is_promotion {
+                self.piece.to_char()
+            } else {
+                self.piece.get_color()
+                          .get_pawn()
+                          .to_char()
+            });
+        algebraic_notation.push_str(&self.origin.to_string());
+        if self.special.is_capture() {
+            algebraic_notation.push('x');
+        } else{
+            algebraic_notation.push('-');
+        }
+        algebraic_notation.push_str(&self.target.to_string());
+        if is_promotion {
+            let mut promotion = "=".to_string();
+            promotion.push(self.piece.to_char());
+            algebraic_notation.push_str(&promotion);
+        }
+        match self.special.move_result() {
+            SpecialMoveResult::None => (),
+            SpecialMoveResult::Check => algebraic_notation.push('+'),
+            SpecialMoveResult::Checkmate => algebraic_notation.push('#'),
+            SpecialMoveResult::Stalemate => algebraic_notation.push('0'),
+        }
+        algebraic_notation
     }
 }
 
@@ -106,6 +134,90 @@ fn build_move_type(result: SpecialMoveResult, base: SpecialMoves) -> SpecialMove
 
 /// Helper methods for modifying SpecialMoves
 impl SpecialMoves {
+    pub fn is_castle(&self) -> bool {
+        match self {
+            SpecialMoves::Castling | SpecialMoves::CastlingCheck | SpecialMoves::CastlingCheckmate |
+            SpecialMoves::CastlingStalemate => true,
+            _ => false,
+        }
+    }
+    pub fn is_promotion(&self) -> bool {
+        match self {
+            SpecialMoves::Promotion | SpecialMoves::PromotionCheck | SpecialMoves::PromotionCheckmate |
+            SpecialMoves::PromotionStalemate | SpecialMoves::CapturePromotion |
+            SpecialMoves::CapturePromotionCheck | SpecialMoves::CapturePromotionCheckmate |
+            SpecialMoves::CapturePromotionStalemate=> true,
+            _ => false,
+        }
+    }
+    pub fn is_check(&self) -> bool {
+        match self {
+            SpecialMoves::Check | SpecialMoves::CastlingCheck | SpecialMoves::PromotionCheck |
+            SpecialMoves::CapturePromotionCheck | SpecialMoves::EnPassantCheck |
+            SpecialMoves::EnableEnPassantCheck => true,
+            _ => false,
+        }
+    }
+    pub fn is_checkmate(&self) -> bool {
+        match self {
+            SpecialMoves::Checkmate | SpecialMoves::CastlingCheckmate | SpecialMoves::PromotionCheckmate |
+            SpecialMoves::CapturePromotionCheckmate | SpecialMoves::EnPassantCheckmate |
+            SpecialMoves::EnableEnPassantCheckmate => true,
+            _ => false,
+        }
+    }
+    pub fn is_stalemate(&self) -> bool {
+        match self {
+            SpecialMoves::Stalemate | SpecialMoves::CastlingStalemate | SpecialMoves::PromotionStalemate |
+            SpecialMoves::CapturePromotionStalemate | SpecialMoves::EnPassantStalemate |
+            SpecialMoves::EnableEnPassantStalemate => true,
+            _ => false,
+        }
+    }
+    pub fn is_capture(&self) -> bool {
+        match self {
+            SpecialMoves::Capture | SpecialMoves::CaptureCheck | SpecialMoves::CaptureCheckmate |
+            SpecialMoves::CapturePromotion | SpecialMoves::CapturePromotionCheck |
+            SpecialMoves::CapturePromotionCheckmate | SpecialMoves::EnPassant | SpecialMoves::EnPassantCheck |
+            SpecialMoves::EnPassantCheckmate | SpecialMoves::EnPassantStalemate => true,
+            _ => false,
+        }
+    }
+    pub fn is_en_passant(&self) -> bool {
+        match self {
+            SpecialMoves::EnPassant | SpecialMoves::EnPassantCheck | SpecialMoves::EnPassantCheckmate |
+            SpecialMoves::EnPassantStalemate => true,
+            _ => false,
+        }
+    }
+    pub fn is_enable_en_passant(&self) -> bool {
+        match self {
+            SpecialMoves::EnableEnPassant | SpecialMoves::EnableEnPassantCheck |
+            SpecialMoves::EnableEnPassantCheckmate | SpecialMoves::EnableEnPassantStalemate => true,
+            _ => false,
+        }
+    }
+    pub fn move_result(&self) -> SpecialMoveResult {
+        match self {
+            SpecialMoves::None | SpecialMoves::Castling | SpecialMoves::Promotion |
+            SpecialMoves::EnPassant | SpecialMoves::EnableEnPassant |
+            SpecialMoves::Capture | SpecialMoves::CapturePromotion =>
+                SpecialMoveResult::None,
+            SpecialMoves::Check | SpecialMoves::CastlingCheck | SpecialMoves::PromotionCheck |
+            SpecialMoves::EnPassantCheck | SpecialMoves::EnableEnPassantCheck |
+            SpecialMoves::CaptureCheck | SpecialMoves::CapturePromotionCheck =>
+                SpecialMoveResult::Check,
+            SpecialMoves::Checkmate | SpecialMoves::CastlingCheckmate | SpecialMoves::PromotionCheckmate |
+            SpecialMoves::EnPassantCheckmate | SpecialMoves::EnableEnPassantCheckmate |
+            SpecialMoves::CaptureCheckmate | SpecialMoves::CapturePromotionCheckmate=>
+                SpecialMoveResult::Checkmate,
+            SpecialMoves::Stalemate | SpecialMoves::CastlingStalemate | SpecialMoves::PromotionStalemate |
+            SpecialMoves::EnPassantStalemate | SpecialMoves::EnableEnPassantStalemate |
+            SpecialMoves::CaptureStalemate | SpecialMoves::CapturePromotionStalemate =>
+                SpecialMoveResult::Stalemate,
+            SpecialMoves::GeneratedOnly => unimplemented!("GeneratedOnly variant not handled for {:?}", self),
+        }
+    }
     fn add_check(self) -> SpecialMoves {
         match self {
             SpecialMoves::None => SpecialMoves::Check,

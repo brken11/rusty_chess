@@ -17,27 +17,50 @@ pub struct CastlingRights {
 
 pub type Bitboard = u64;
 pub type Square = u8;
-//
-impl Square {
-    pub fn get_row(&self) -> u8 {
+pub trait SquareExt {
+    fn get_row(&self) -> u8;
+    fn get_col(&self) -> u8;
+    fn get_index(&self) -> usize;
+    fn get_file(&self) -> char;
+    fn get_rank(&self) -> u8;
+    fn iter_files() -> impl Iterator<Item = char>;
+    fn iter_ranks() -> impl Iterator<Item = u8>;
+    fn iter_squares() -> impl Iterator<Item = Square>;
+    fn to_string(&self) -> String;
+}
+impl SquareExt for Square {
+    fn get_row(&self) -> u8 {
         self / 8
     }
-    pub fn get_col(&self) -> u8 {
+    fn get_col(&self) -> u8 {
         self % 8
     }
-    pub fn get_index(&self) -> usize {
+    fn get_index(&self) -> usize {
         *self as usize
     }
-    pub fn get_file(&self) -> char {
+    fn get_file(&self) -> char {
         match self % 8 {
-            0 => 'a', 1 => 'b', 2 => 'c', 3 => 'd', 4 => 'e', 5 => 'f', 6 => 'g', 7 => 'h',
+             0 => 'a', 1 => 'b', 2 => 'c', 3 => 'd', 4 => 'e', 5 => 'f', 6 => 'g', 7 => 'h',
             _ => panic!("Invalid file index"),
         }
     }
-    pub fn get_rank(&self) -> u8 {
-        8 - self / 8
+    fn get_rank(&self) -> u8 {
+         8 - self / 8
+    }
+    fn iter_files() -> impl Iterator<Item = char> {
+        (0..8).map(|i| i as u8).map(|i| i.get_file())
+    }
+    fn iter_ranks() -> impl Iterator<Item = u8> {
+        (0..8).map(|i| i as u8)
+    }
+    fn iter_squares() -> impl Iterator<Item = Square> {
+        (0..64).map(|i| i as u8)
+    }
+    fn to_string(&self) -> String {
+        format!("{}{}", self.get_rank(), self.get_file())
     }
 }
+
 
 pub struct Board {
     data: [Bitboard; 12],
@@ -155,8 +178,8 @@ impl Board {
     }
     pub fn to_string(&self) -> String {
         let mut rendered_board = String::new();
-        for row in 0..8 {
-            let square = row * 8;// Compute the starting index for this rank
+        for row in Square::iter_ranks() {
+            let square: Square = row * 8;// Compute the starting index for this rank
             rendered_board.push_str(&format!(
                 " {} | {}  {}  {}  {}  {}  {}  {}  {} |\n",
                 8 - row, //rank number
