@@ -40,6 +40,16 @@ impl Piece {
         Piece::iter().nth(index)
     }
 
+    pub fn to_char(&self) -> char {
+        match self {
+            Piece::WhitePawn => '♟', Piece::BlackPawn => '♙',
+            Piece::WhiteRook => '♜', Piece::BlackRook => '♖',
+            Piece::WhiteKnight => '♞', Piece::BlackKnight => '♘',
+            Piece::WhiteBishop => '♝', Piece::BlackBishop => '♗',
+            Piece::WhiteQueen => '♛', Piece::BlackQueen => '♕',
+            Piece::WhiteKing => '♚', Piece::BlackKing => '♔',
+        }
+    }
 
 }
 
