@@ -26,7 +26,7 @@ pub trait SquareExt {
     fn iter_files() -> impl Iterator<Item = char>;
     fn iter_ranks() -> impl Iterator<Item = u8>;
     fn iter_squares() -> impl Iterator<Item = Square>;
-    fn to_string(&self) -> String;
+    fn to_square_string(&self) -> String;
 }
 impl SquareExt for Square {
     fn get_row(&self) -> u8 {
@@ -56,7 +56,7 @@ impl SquareExt for Square {
     fn iter_squares() -> impl Iterator<Item = Square> {
         (0..64).map(|i| i as u8)
     }
-    fn to_string(&self) -> String {
+    fn to_square_string(&self) -> String {
         format!("{}{}", self.get_rank(), self.get_file())
     }
 }
@@ -174,6 +174,12 @@ impl Board {
         if let Some(piece) = self.get_piece_at(square) {
             return piece.to_char();
         }
+        ' '
+    }
+    pub fn get_symbol_at(&self, square: Square) -> char {
+        if let Some(piece) = self.get_piece_at(square) {
+            return piece.to_symbol();
+        }
         '-'
     }
     pub fn to_string(&self) -> String {
@@ -183,14 +189,14 @@ impl Board {
             rendered_board.push_str(&format!(
                 " {} | {}  {}  {}  {}  {}  {}  {}  {} |\n",
                 8 - row, //rank number
-                self.get_char_at(square),
-                self.get_char_at(square + 1),
-                self.get_char_at(square + 2),
-                self.get_char_at(square + 3),
-                self.get_char_at(square + 4),
-                self.get_char_at(square + 5),
-                self.get_char_at(square + 6),
-                self.get_char_at(square + 7)
+                self.get_symbol_at(square),
+                self.get_symbol_at(square + 1),
+                self.get_symbol_at(square + 2),
+                self.get_symbol_at(square + 3),
+                self.get_symbol_at(square + 4),
+                self.get_symbol_at(square + 5),
+                self.get_symbol_at(square + 6),
+                self.get_symbol_at(square + 7)
             ));
         }
         rendered_board.push_str("   | a  b  c  d  e  f  g  h |\n");

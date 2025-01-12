@@ -1,14 +1,20 @@
-use crate::board::pieces;
+use crate::rules;
+use crate::board;
+use rules::MoveResult;
+use rules::CastleType;
+
+use crate::board::{pieces, Square, SquareExt, Board};
 use pieces::Piece;
 use pieces::Color;
+use crate::rules::MoveType;
 
 #[repr(u8)]
 #[derive(Debug)]
-pub enum SpecialMoves {
-    None,
-    Check,
-    Checkmate,
-    Stalemate,
+pub enum MoveData {
+    Normal,
+    NormalCheck,
+    NormaCheckmate,
+    NormalStalemate,
     Castling,
     CastlingCheck,
     CastlingCheckmate,
@@ -38,29 +44,23 @@ pub enum SpecialMoves {
 }
 
 pub enum SpecialMoveType{
-    None,
+    None,//Has Capture Variant
     Castling,
-    Promotion,
-    EnPassant,
+    Promotion,//Has capture Variant
+    EnPassant,//Implicitly captures
     EnableEnPassant,
-}
-pub enum SpecialMoveResult{
-    None,
-    Check,
-    Checkmate,
-    Stalemate,
 }
 
 #[derive(Debug)]
 pub struct ChessMove {
     piece: Piece,
-    origin: u8,
-    target: u8,
-    special: SpecialMoves,
+    origin: Square,
+    target: Square,
+    special: MoveData,
 }
 
 impl ChessMove {
-    pub fn new(piece: Piece, origin: u8, target: u8, special: SpecialMoves) -> ChessMove {
+    fn new(piece: Piece, origin: Square, target: Square, special: MoveData) -> ChessMove {
         ChessMove {
             piece,
             origin,
@@ -68,186 +68,195 @@ impl ChessMove {
             special,
         }
     }
+    pub fn assemble_special_move(move_type: MoveType, captures: bool, enables_en_passant: bool, result: MoveResult) -> MoveData {
+        if enables_en_passant {
+            build_move_type(MoveData::EnableEnPassant, result)
+        } else {
+            match move_type {
+                MoveType::Regular => build_none_or_promotion(MoveData::Normal, captures, MoveData::Capture, result),
+                MoveType::Castling => build_move_type(MoveData::Castling, result),
+                MoveType::EnPassant => build_move_type(MoveData::EnPassant, result),
+                MoveType::Promotion => build_none_or_promotion(MoveData::Promotion, captures, MoveData::CapturePromotion, result),
+            }
+        }
+    }
 
     pub fn to_long_algebraic(&self) -> String {
-        let mut algebraic_notation = String::new();
         let is_promotion = self.special.is_promotion();
+        let initial_char:Option<&str> = if is_promotion {None} else {self.piece.to_str()};
 
-        algebraic_notation.push(
-        if is_promotion {
-                self.piece.to_char()
+        let mut algebraic_notation = if self.special.is_castle() {
+            if self.origin.get_col() > self.target.get_col() {
+                CastleType::KingSide.to_string()
             } else {
-                self.piece.get_color()
-                          .get_pawn()
-                          .to_char()
-            });
-        algebraic_notation.push_str(&self.origin.to_string());
-        if self.special.is_capture() {
-            algebraic_notation.push('x');
-        } else{
-            algebraic_notation.push('-');
-        }
-        algebraic_notation.push_str(&self.target.to_string());
+                CastleType::QueenSide.to_string()
+            }
+        } else {
+            format!(
+                "{}{}{}{}",
+                if initial_char.is_none() { "" } else { initial_char.unwrap() },
+                self.origin.to_square_string(),
+                if self.special.is_capture() { "x" } else { "-" },
+                self.target.to_square_string()
+            )
+        };
+
         if is_promotion {
-            let mut promotion = "=".to_string();
-            promotion.push(self.piece.to_char());
-            algebraic_notation.push_str(&promotion);
+            algebraic_notation.push('=');
+            algebraic_notation.push(self.piece.to_char());
         }
-        match self.special.move_result() {
-            SpecialMoveResult::None => (),
-            SpecialMoveResult::Check => algebraic_notation.push('+'),
-            SpecialMoveResult::Checkmate => algebraic_notation.push('#'),
-            SpecialMoveResult::Stalemate => algebraic_notation.push('0'),
+        if let Some(move_result) = self.special.move_result().to_char() {
+            algebraic_notation.push(move_result)
         }
         algebraic_notation
     }
 }
 
-pub fn special_move_builder(move_type: SpecialMoveType, result: SpecialMoveResult, captures: bool) -> SpecialMoves {
+pub fn special_move_builder(move_type: SpecialMoveType, result: MoveResult, captures: bool) -> MoveData {
     match move_type {
-        SpecialMoveType::None => build_none_or_promotion(result, captures, SpecialMoves::None, SpecialMoves::Capture),
-        SpecialMoveType::Promotion => build_none_or_promotion(result, captures, SpecialMoves::Promotion, SpecialMoves::CapturePromotion),
-        SpecialMoveType::Castling => build_move_type(result, SpecialMoves::Castling),
-        SpecialMoveType::EnPassant => build_move_type(result, SpecialMoves::EnPassant), // Captures handled intrinsically
-        SpecialMoveType::EnableEnPassant => build_move_type(result, SpecialMoves::EnableEnPassant),
+        SpecialMoveType::None => build_none_or_promotion(MoveData::Normal, captures, MoveData::Capture, result),
+        SpecialMoveType::Promotion => build_none_or_promotion(MoveData::Promotion, captures, MoveData::CapturePromotion, result),
+        SpecialMoveType::Castling => build_move_type(MoveData::Castling, result),
+        SpecialMoveType::EnPassant => build_move_type(MoveData::EnPassant, result), // Captures handled intrinsically
+        SpecialMoveType::EnableEnPassant => build_move_type(MoveData::EnableEnPassant, result),
     }
 }
-/// Builds `None`- or promotion-related moves
-fn build_none_or_promotion(result: SpecialMoveResult, captures: bool, base: SpecialMoves, capture_base: SpecialMoves) -> SpecialMoves {
+/// Builds `Normal`- or promotion-related moves
+fn build_none_or_promotion(base: MoveData, captures: bool, capture_base: MoveData, result: MoveResult) -> MoveData {
     match result {
-        SpecialMoveResult::None => if captures { capture_base } else { base },
-        SpecialMoveResult::Check => if captures { capture_base.add_check() } else { base.add_check() },
-        SpecialMoveResult::Checkmate => if captures { capture_base.add_checkmate() } else { base.add_checkmate() },
-        SpecialMoveResult::Stalemate => if captures { capture_base.add_stalemate() } else { base.add_stalemate() },
+        MoveResult::None => if captures { capture_base } else { base },
+        MoveResult::Check => if captures { capture_base.add_check() } else { base.add_check() },
+        MoveResult::Checkmate => if captures { capture_base.add_checkmate() } else { base.add_checkmate() },
+        MoveResult::Stalemate => if captures { capture_base.add_stalemate() } else { base.add_stalemate() },
     }
 }
 
-/// Builds moves for types without captures (e.g. `Castling`, `EnPassant`, `EnableEnPassant`)
-fn build_move_type(result: SpecialMoveResult, base: SpecialMoves) -> SpecialMoves {
+/// Builds moves for types without implicit captures (e.g. `Castling`, `EnPassant`, `EnableEnPassant`)
+fn build_move_type(base: MoveData, result: MoveResult) -> MoveData {
     match result {
-        SpecialMoveResult::None => base,
-        SpecialMoveResult::Check => base.add_check(),
-        SpecialMoveResult::Checkmate => base.add_checkmate(),
-        SpecialMoveResult::Stalemate => base.add_stalemate(),
+        MoveResult::None => base,
+        MoveResult::Check => base.add_check(),
+        MoveResult::Checkmate => base.add_checkmate(),
+        MoveResult::Stalemate => base.add_stalemate(),
     }
 }
 
 /// Helper methods for modifying SpecialMoves
-impl SpecialMoves {
+impl MoveData {
     pub fn is_castle(&self) -> bool {
         match self {
-            SpecialMoves::Castling | SpecialMoves::CastlingCheck | SpecialMoves::CastlingCheckmate |
-            SpecialMoves::CastlingStalemate => true,
+            MoveData::Castling | MoveData::CastlingCheck | MoveData::CastlingCheckmate |
+            MoveData::CastlingStalemate => true,
             _ => false,
         }
     }
     pub fn is_promotion(&self) -> bool {
         match self {
-            SpecialMoves::Promotion | SpecialMoves::PromotionCheck | SpecialMoves::PromotionCheckmate |
-            SpecialMoves::PromotionStalemate | SpecialMoves::CapturePromotion |
-            SpecialMoves::CapturePromotionCheck | SpecialMoves::CapturePromotionCheckmate |
-            SpecialMoves::CapturePromotionStalemate=> true,
+            MoveData::Promotion | MoveData::PromotionCheck | MoveData::PromotionCheckmate |
+            MoveData::PromotionStalemate | MoveData::CapturePromotion |
+            MoveData::CapturePromotionCheck | MoveData::CapturePromotionCheckmate |
+            MoveData::CapturePromotionStalemate=> true,
             _ => false,
         }
     }
     pub fn is_check(&self) -> bool {
         match self {
-            SpecialMoves::Check | SpecialMoves::CastlingCheck | SpecialMoves::PromotionCheck |
-            SpecialMoves::CapturePromotionCheck | SpecialMoves::EnPassantCheck |
-            SpecialMoves::EnableEnPassantCheck => true,
+            MoveData::NormalCheck | MoveData::CastlingCheck | MoveData::PromotionCheck |
+            MoveData::CapturePromotionCheck | MoveData::EnPassantCheck |
+            MoveData::EnableEnPassantCheck => true,
             _ => false,
         }
     }
     pub fn is_checkmate(&self) -> bool {
         match self {
-            SpecialMoves::Checkmate | SpecialMoves::CastlingCheckmate | SpecialMoves::PromotionCheckmate |
-            SpecialMoves::CapturePromotionCheckmate | SpecialMoves::EnPassantCheckmate |
-            SpecialMoves::EnableEnPassantCheckmate => true,
+            MoveData::NormaCheckmate | MoveData::CastlingCheckmate | MoveData::PromotionCheckmate |
+            MoveData::CapturePromotionCheckmate | MoveData::EnPassantCheckmate |
+            MoveData::EnableEnPassantCheckmate => true,
             _ => false,
         }
     }
     pub fn is_stalemate(&self) -> bool {
         match self {
-            SpecialMoves::Stalemate | SpecialMoves::CastlingStalemate | SpecialMoves::PromotionStalemate |
-            SpecialMoves::CapturePromotionStalemate | SpecialMoves::EnPassantStalemate |
-            SpecialMoves::EnableEnPassantStalemate => true,
+            MoveData::NormalStalemate | MoveData::CastlingStalemate | MoveData::PromotionStalemate |
+            MoveData::CapturePromotionStalemate | MoveData::EnPassantStalemate |
+            MoveData::EnableEnPassantStalemate => true,
             _ => false,
         }
     }
     pub fn is_capture(&self) -> bool {
         match self {
-            SpecialMoves::Capture | SpecialMoves::CaptureCheck | SpecialMoves::CaptureCheckmate |
-            SpecialMoves::CapturePromotion | SpecialMoves::CapturePromotionCheck |
-            SpecialMoves::CapturePromotionCheckmate | SpecialMoves::EnPassant | SpecialMoves::EnPassantCheck |
-            SpecialMoves::EnPassantCheckmate | SpecialMoves::EnPassantStalemate => true,
+            MoveData::Capture | MoveData::CaptureCheck | MoveData::CaptureCheckmate |
+            MoveData::CapturePromotion | MoveData::CapturePromotionCheck |
+            MoveData::CapturePromotionCheckmate | MoveData::EnPassant | MoveData::EnPassantCheck |
+            MoveData::EnPassantCheckmate | MoveData::EnPassantStalemate => true,
             _ => false,
         }
     }
     pub fn is_en_passant(&self) -> bool {
         match self {
-            SpecialMoves::EnPassant | SpecialMoves::EnPassantCheck | SpecialMoves::EnPassantCheckmate |
-            SpecialMoves::EnPassantStalemate => true,
+            MoveData::EnPassant | MoveData::EnPassantCheck | MoveData::EnPassantCheckmate |
+            MoveData::EnPassantStalemate => true,
             _ => false,
         }
     }
     pub fn is_enable_en_passant(&self) -> bool {
         match self {
-            SpecialMoves::EnableEnPassant | SpecialMoves::EnableEnPassantCheck |
-            SpecialMoves::EnableEnPassantCheckmate | SpecialMoves::EnableEnPassantStalemate => true,
+            MoveData::EnableEnPassant | MoveData::EnableEnPassantCheck |
+            MoveData::EnableEnPassantCheckmate | MoveData::EnableEnPassantStalemate => true,
             _ => false,
         }
     }
-    pub fn move_result(&self) -> SpecialMoveResult {
+    pub fn move_result(&self) -> MoveResult {
         match self {
-            SpecialMoves::None | SpecialMoves::Castling | SpecialMoves::Promotion |
-            SpecialMoves::EnPassant | SpecialMoves::EnableEnPassant |
-            SpecialMoves::Capture | SpecialMoves::CapturePromotion =>
-                SpecialMoveResult::None,
-            SpecialMoves::Check | SpecialMoves::CastlingCheck | SpecialMoves::PromotionCheck |
-            SpecialMoves::EnPassantCheck | SpecialMoves::EnableEnPassantCheck |
-            SpecialMoves::CaptureCheck | SpecialMoves::CapturePromotionCheck =>
-                SpecialMoveResult::Check,
-            SpecialMoves::Checkmate | SpecialMoves::CastlingCheckmate | SpecialMoves::PromotionCheckmate |
-            SpecialMoves::EnPassantCheckmate | SpecialMoves::EnableEnPassantCheckmate |
-            SpecialMoves::CaptureCheckmate | SpecialMoves::CapturePromotionCheckmate=>
-                SpecialMoveResult::Checkmate,
-            SpecialMoves::Stalemate | SpecialMoves::CastlingStalemate | SpecialMoves::PromotionStalemate |
-            SpecialMoves::EnPassantStalemate | SpecialMoves::EnableEnPassantStalemate |
-            SpecialMoves::CaptureStalemate | SpecialMoves::CapturePromotionStalemate =>
-                SpecialMoveResult::Stalemate,
-            SpecialMoves::GeneratedOnly => unimplemented!("GeneratedOnly variant not handled for {:?}", self),
+            MoveData::Normal | MoveData::Castling | MoveData::Promotion |
+            MoveData::EnPassant | MoveData::EnableEnPassant |
+            MoveData::Capture | MoveData::CapturePromotion =>
+                MoveResult::None,
+            MoveData::NormalCheck | MoveData::CastlingCheck | MoveData::PromotionCheck |
+            MoveData::EnPassantCheck | MoveData::EnableEnPassantCheck |
+            MoveData::CaptureCheck | MoveData::CapturePromotionCheck =>
+                MoveResult::Check,
+            MoveData::NormaCheckmate | MoveData::CastlingCheckmate | MoveData::PromotionCheckmate |
+            MoveData::EnPassantCheckmate | MoveData::EnableEnPassantCheckmate |
+            MoveData::CaptureCheckmate | MoveData::CapturePromotionCheckmate=>
+                MoveResult::Checkmate,
+            MoveData::NormalStalemate | MoveData::CastlingStalemate | MoveData::PromotionStalemate |
+            MoveData::EnPassantStalemate | MoveData::EnableEnPassantStalemate |
+            MoveData::CaptureStalemate | MoveData::CapturePromotionStalemate =>
+                MoveResult::Stalemate,
+            MoveData::GeneratedOnly => unimplemented!("GeneratedOnly variant not handled for {:?}", self),
         }
     }
-    fn add_check(self) -> SpecialMoves {
+    fn add_check(self) -> MoveData {
         match self {
-            SpecialMoves::None => SpecialMoves::Check,
-            SpecialMoves::Castling => SpecialMoves::CastlingCheck,
-            SpecialMoves::Promotion => SpecialMoves::PromotionCheck,
-            SpecialMoves::CapturePromotion => SpecialMoves::CapturePromotionCheck,
-            SpecialMoves::EnPassant => SpecialMoves::EnPassantCheck,
-            SpecialMoves::EnableEnPassant => SpecialMoves::EnableEnPassantCheck,
+            MoveData::Normal => MoveData::NormalCheck,
+            MoveData::Castling => MoveData::CastlingCheck,
+            MoveData::Promotion => MoveData::PromotionCheck,
+            MoveData::CapturePromotion => MoveData::CapturePromotionCheck,
+            MoveData::EnPassant => MoveData::EnPassantCheck,
+            MoveData::EnableEnPassant => MoveData::EnableEnPassantCheck,
             _ => unimplemented!("Check variant not handled for {:?}", self),
         }
     }
-    fn add_checkmate(self) -> SpecialMoves {
+    fn add_checkmate(self) -> MoveData {
         match self {
-            SpecialMoves::None => SpecialMoves::Checkmate,
-            SpecialMoves::Castling => SpecialMoves::CastlingCheckmate,
-            SpecialMoves::Promotion => SpecialMoves::PromotionCheckmate,
-            SpecialMoves::CapturePromotion => SpecialMoves::CapturePromotionCheckmate,
-            SpecialMoves::EnPassant => SpecialMoves::EnPassantCheckmate,
-            SpecialMoves::EnableEnPassant => SpecialMoves::EnableEnPassantCheckmate,
+            MoveData::Normal => MoveData::NormaCheckmate,
+            MoveData::Castling => MoveData::CastlingCheckmate,
+            MoveData::Promotion => MoveData::PromotionCheckmate,
+            MoveData::CapturePromotion => MoveData::CapturePromotionCheckmate,
+            MoveData::EnPassant => MoveData::EnPassantCheckmate,
+            MoveData::EnableEnPassant => MoveData::EnableEnPassantCheckmate,
             _ => unimplemented!("Checkmate variant not handled for {:?}", self),
         }
     }
-    fn add_stalemate(self) -> SpecialMoves {
+    fn add_stalemate(self) -> MoveData {
         match self {
-            SpecialMoves::None => SpecialMoves::Stalemate,
-            SpecialMoves::Castling => SpecialMoves::CastlingStalemate,
-            SpecialMoves::Promotion => SpecialMoves::PromotionStalemate,
-            SpecialMoves::CapturePromotion => SpecialMoves::CapturePromotionStalemate,
-            SpecialMoves::EnPassant => SpecialMoves::EnPassantStalemate,
-            SpecialMoves::EnableEnPassant => SpecialMoves::EnableEnPassantStalemate,
+            MoveData::Normal => MoveData::NormalStalemate,
+            MoveData::Castling => MoveData::CastlingStalemate,
+            MoveData::Promotion => MoveData::PromotionStalemate,
+            MoveData::CapturePromotion => MoveData::CapturePromotionStalemate,
+            MoveData::EnPassant => MoveData::EnPassantStalemate,
+            MoveData::EnableEnPassant => MoveData::EnableEnPassantStalemate,
             _ => unimplemented!("Stalemate variant not handled for {:?}", self),
         }
     }

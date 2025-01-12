@@ -39,6 +39,43 @@ impl Piece {
         }
     }
 
+    pub fn is_pawn(&self) -> bool {
+        match self {
+            Piece::WhitePawn | Piece::BlackPawn => true,
+            _ => false,
+        }
+    }
+    pub fn is_rook(&self) -> bool {
+        match self {
+            Piece::WhiteRook | Piece::BlackRook => true,
+            _ => false,
+        }
+    }
+    pub fn is_knight(&self) -> bool {
+        match self {
+            Piece::WhiteKnight | Piece::BlackKnight => true,
+            _ => false,
+        }
+    }
+    pub fn is_bishop(&self) -> bool {
+        match self {
+            Piece::WhiteBishop | Piece::BlackBishop => true,
+            _ => false,
+        }
+    }
+    pub fn is_queen(&self) -> bool {
+        match self {
+            Piece::WhiteQueen | Piece::BlackQueen => true,
+            _ => false,
+        }
+    }
+    pub fn is_king(&self) -> bool {
+        match self {
+            Piece::WhiteKing | Piece::BlackKing => true,
+            _ => false,
+        }
+    }
+
     pub fn to_index(&self) -> usize {
         *self as usize
     }
@@ -48,6 +85,26 @@ impl Piece {
     }
 
     pub fn to_char(&self) -> char {
+        match self {
+            Piece::WhitePawn => 'P', Piece::BlackPawn => 'p',
+            Piece::WhiteRook => 'R', Piece::BlackRook => 'r',
+            Piece::WhiteKnight => 'N', Piece::BlackKnight => 'n',
+            Piece::WhiteBishop => 'B', Piece::BlackBishop => 'b',
+            Piece::WhiteQueen => 'Q', Piece::BlackQueen => 'q',
+            Piece::WhiteKing => 'K', Piece::BlackKing => 'k',
+        }
+    }
+    pub fn to_str(&self) -> Option<&str> {
+        match self {
+            Piece::WhiteRook => Some("R"), Piece::BlackRook => Some("r"),
+            Piece::WhiteKnight => Some("N"), Piece::BlackKnight => Some("n"),
+            Piece::WhiteBishop => Some("B"), Piece::BlackBishop => Some("b"),
+            Piece::WhiteQueen => Some("Q"), Piece::BlackQueen => Some("q"),
+            Piece::WhiteKing => Some("K"), Piece::BlackKing => Some("k"),
+            _ => None,
+        }
+    }
+    pub fn to_symbol(&self) -> char {
         match self {
             Piece::WhitePawn => '♟', Piece::BlackPawn => '♙',
             Piece::WhiteRook => '♜', Piece::BlackRook => '♖',
