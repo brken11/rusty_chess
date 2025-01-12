@@ -19,7 +19,11 @@ pub type Bitboard = u64;
 pub type Square = u8;
 pub trait SquareExt {
     fn get_row(&self) -> u8;
+    fn get_ascending_rows(&self) -> impl Iterator<Item = u8>;
+    fn get_descending_rows(&self) -> impl Iterator<Item = u8>;
     fn get_col(&self) -> u8;
+    fn get_ascending_cols(&self) -> impl Iterator<Item = u8>;
+    fn get_descending_cols(&self) -> impl Iterator<Item = u8>;
     fn get_index(&self) -> usize;
     fn get_file(&self) -> char;
     fn get_rank(&self) -> u8;
@@ -32,8 +36,20 @@ impl SquareExt for Square {
     fn get_row(&self) -> u8 {
         self / 8
     }
+    fn get_ascending_rows(&self) -> impl Iterator<Item=u8> {
+        self.get_row() + 1..8
+    }
+    fn get_descending_rows(&self) -> impl Iterator<Item=u8> {
+        0..self.get_row()
+    }
     fn get_col(&self) -> u8 {
         self % 8
+    }
+    fn get_ascending_cols(&self) -> impl Iterator<Item=u8> {
+        self.get_col() + 1..8
+    }
+    fn get_descending_cols(&self) -> impl Iterator<Item=u8> {
+        0..self.get_col()
     }
     fn get_index(&self) -> usize {
         *self as usize
