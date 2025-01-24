@@ -1,5 +1,6 @@
 pub(crate) mod pieces;
 
+use std::fmt;
 use pieces::Color;
 use pieces::Piece;
 
@@ -18,38 +19,47 @@ pub struct CastlingRights {
 pub type Bitboard = u64;
 pub type Square = u8;
 pub trait SquareExt {
+    const SQUARES: [&'static str; 64];
     fn get_row(&self) -> u8;
-    fn get_ascending_rows(&self) -> impl Iterator<Item = u8>;
-    fn get_descending_rows(&self) -> impl Iterator<Item = u8>;
+    fn get_rows(&self, ascending : bool) -> impl Iterator<Item = u8>;
     fn get_col(&self) -> u8;
-    fn get_ascending_cols(&self) -> impl Iterator<Item = u8>;
-    fn get_descending_cols(&self) -> impl Iterator<Item = u8>;
+    fn get_cols(&self, ascending : bool) -> impl Iterator<Item = u8>;
+    fn get_pos_pair(&self) -> (u8, u8);
     fn get_index(&self) -> usize;
     fn get_file(&self) -> char;
     fn get_rank(&self) -> u8;
+    fn new(row : u8, col : u8) -> Square;
     fn iter_files() -> impl Iterator<Item = char>;
     fn iter_ranks() -> impl Iterator<Item = u8>;
     fn iter_squares() -> impl Iterator<Item = Square>;
+    fn to_square_str(&self) -> &str;
     fn to_square_string(&self) -> String;
 }
 impl SquareExt for Square {
+    const SQUARES: [&'static str; 64] = [
+        "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
+        "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
+        "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
+        "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5",
+        "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
+        "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
+        "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
+        "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
+    ];
     fn get_row(&self) -> u8 {
         self / 8
     }
-    fn get_ascending_rows(&self) -> impl Iterator<Item=u8> {
-        self.get_row() + 1..8
-    }
-    fn get_descending_rows(&self) -> impl Iterator<Item=u8> {
-        0..self.get_row()
+    fn get_rows(&self, ascending : bool) -> impl Iterator<Item=u8> {
+        if ascending {self.get_row() + 1..8} else {0..self.get_row()}
     }
     fn get_col(&self) -> u8 {
         self % 8
     }
-    fn get_ascending_cols(&self) -> impl Iterator<Item=u8> {
-        self.get_col() + 1..8
+    fn get_cols(&self, ascending : bool) -> impl Iterator<Item=u8> {
+        if ascending {self.get_col() + 1..8} else {0..self.get_col()}
     }
-    fn get_descending_cols(&self) -> impl Iterator<Item=u8> {
-        0..self.get_col()
+    fn get_pos_pair(&self) -> (u8, u8) {
+        (self.get_row(),self.get_col())
     }
     fn get_index(&self) -> usize {
         *self as usize
@@ -63,6 +73,9 @@ impl SquareExt for Square {
     fn get_rank(&self) -> u8 {
          8 - self / 8
     }
+    fn new(row : u8, col : u8) -> Square {
+        row * 8 + col
+    }
     fn iter_files() -> impl Iterator<Item = char> {
         (0..8).map(|i| i as u8).map(|i| i.get_file())
     }
@@ -72,11 +85,13 @@ impl SquareExt for Square {
     fn iter_squares() -> impl Iterator<Item = Square> {
         (0..64).map(|i| i as u8)
     }
+    fn to_square_str(&self) -> &str {
+        Self::SQUARES[*self as usize]
+    }
     fn to_square_string(&self) -> String {
-        format!("{}{}", self.get_rank(), self.get_file())
+        format!("{}{}", self.get_file(),self.get_rank())
     }
 }
-
 
 pub struct Board {
     data: [Bitboard; 12],
@@ -163,10 +178,10 @@ impl Board {
     }
     pub fn king_square_by_color(&self, color: &Color) -> Option<Square> {
         match color {
-            Color::White => self.data[Piece::WhiteKing as usize].trailing_zeros(),
-            Color::Black => self.data[Piece::BlackKing as usize].trailing_zeros()
-        };
-        None
+            Color::White => Some(self.data[Piece::WhiteKing as usize].trailing_zeros() as Square),
+            Color::Black => Some(self.data[Piece::BlackKing as usize].trailing_zeros() as Square),
+            _ => None
+        }
     }
 
     pub fn remove_piece_at(&mut self, square: Square, piece: Piece) -> Result<(), BoardError>{
@@ -189,7 +204,7 @@ impl Board {
     pub fn get_char_at(&self, square: Square) -> char {
         if let Some(piece) = self.get_piece_at(square) {
             return piece.to_char();
-        }
+        };
         ' '
     }
     pub fn get_symbol_at(&self, square: Square) -> char {
@@ -218,4 +233,51 @@ impl Board {
         rendered_board.push_str("   | a  b  c  d  e  f  g  h |\n");
         rendered_board
     }
+
+    pub fn sees_down_file(&self, square:Square, ascending: bool) -> Bitboard {
+        let mut vision_board : Bitboard = 0;
+        for s in square.get_rows(ascending) {
+            vision_board |= 1 << s;
+            if self.piece_locations & (1 << s) != 0 {
+                break;
+            }
+        }
+        vision_board
+    }
+    pub fn sees_down_rank(&self, square:Square, ascending: bool) -> Bitboard {
+        let mut vision_board : Bitboard = 0;
+        for s in square.get_cols(ascending) {
+            vision_board |= 1 << s;
+            if self.piece_locations & (1 << s) != 0 {
+                break;
+            };
+        }
+        vision_board
+    }
+    pub fn sees_down_diagonal(&self, square:Square, ascending_row: bool, ascending_col: bool) -> Bitboard {
+        let mut vision_board : Bitboard = 0;
+        let range = square.get_rows(ascending_row)
+                                    .zip(square.get_cols(ascending_col));
+        for s in range {
+            let diagonal_square : Square = Square::new(s.0, s.1);
+            vision_board |= (1 << diagonal_square);
+            // println!("{}", diagonal_square.to_square_string());
+            if self.piece_locations & (1 << diagonal_square) != 0 {
+                break;
+            }
+        }
+        vision_board
+    }
+
 }
+
+impl fmt::Display for Board {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(f)
+    }
+}
+// impl fmt::Display for Square {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         self.to_square_str().fmt(f)
+//     }
+// }

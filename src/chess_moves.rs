@@ -110,6 +110,12 @@ impl ChessMove {
         }
         algebraic_notation
     }
+    pub fn to_simplified(&self) -> String {
+        //@TODO give own logic
+        return self.to_long_algebraic();
+    }
+
+
 }
 
 pub fn special_move_builder(move_type: SpecialMoveType, result: MoveResult, captures: bool) -> MoveData {
