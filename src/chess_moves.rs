@@ -1,11 +1,10 @@
 use crate::rules;
-use crate::board;
 use rules::MoveResult;
 use rules::CastleType;
 
 use crate::board::{pieces, Square, SquareExt, Board};
 use pieces::Piece;
-use pieces::Color;
+use crate::board::pieces::Color;
 use crate::rules::MoveType;
 
 #[repr(u8)]
@@ -115,7 +114,60 @@ impl ChessMove {
         return self.to_long_algebraic();
     }
 
+    pub fn get_valid_moves(board: &Board) -> Vec<ChessMove> {
+        let possible_moves: Vec<ChessMove> = Self::get_possible_moves(board);
+        Self::validate_moves(possible_moves)
+    }
+    fn validate_moves(moves: Vec<ChessMove>) -> Vec<ChessMove> {
+        let mut moves: Vec<ChessMove> = vec![];
 
+        moves
+    }
+    fn get_possible_moves(board: &Board) -> Vec<ChessMove> {
+        let mut moves: Vec<ChessMove> = vec![];
+        for piece in Piece::iter_color_pieces(&board.active_player){
+            match piece {
+                Piece::WhitePawn | Piece::BlackPawn=> moves.extend(ChessMove::get_pawn_moves(&board)),
+                Piece::WhiteRook | Piece::BlackRook=> moves.extend(ChessMove::get_rook_moves(&board)),
+                Piece::WhiteKnight | Piece::BlackKnight=> moves.extend(ChessMove::get_knight_moves(&board)),
+                Piece::WhiteBishop | Piece::BlackBishop=> moves.extend(ChessMove::get_bishop_moves(&board)),
+                Piece::WhiteQueen | Piece::BlackQueen=> moves.extend(ChessMove::get_queen_moves(&board)),
+                Piece::WhiteKing | Piece::BlackKing=> moves.extend(ChessMove::get_king_moves(&board)),
+                _ => !unreachable!(),
+            }
+        }
+        moves
+    }
+    fn get_pawn_moves(board: &Board) -> Vec<ChessMove> {
+        let mut moves: Vec<ChessMove> = vec![];
+
+        moves
+    }
+    fn get_rook_moves(board: &Board) -> Vec<ChessMove> {
+        let mut moves: Vec<ChessMove> = vec![];
+
+        moves
+    }
+    fn get_knight_moves(board: &Board) -> Vec<ChessMove> {
+        let mut moves: Vec<ChessMove> = vec![];
+
+        moves
+    }
+    fn get_bishop_moves(board: &Board) -> Vec<ChessMove> {
+        let mut moves: Vec<ChessMove> = vec![];
+
+        moves
+    }
+    fn get_queen_moves(board: &Board) -> Vec<ChessMove> {
+        let mut moves: Vec<ChessMove> = vec![];
+
+        moves
+    }
+    fn get_king_moves(board: &Board) -> Vec<ChessMove> {
+        let mut moves: Vec<ChessMove> = vec![];
+
+        moves
+    }
 }
 
 pub fn special_move_builder(move_type: SpecialMoveType, result: MoveResult, captures: bool) -> MoveData {

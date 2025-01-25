@@ -29,6 +29,7 @@ pub trait SquareExt {
     fn get_file(&self) -> char;
     fn get_rank(&self) -> u8;
     fn new(row : u8, col : u8) -> Square;
+    fn valid_new(row : u8, col : u8) -> Option<Square>;
     fn iter_files() -> impl Iterator<Item = char>;
     fn iter_ranks() -> impl Iterator<Item = u8>;
     fn iter_squares() -> impl Iterator<Item = Square>;
@@ -75,6 +76,9 @@ impl SquareExt for Square {
     }
     fn new(row : u8, col : u8) -> Square {
         row * 8 + col
+    }
+    fn valid_new(row : u8, col : u8) -> Option<Square> {
+        if row> 7 || col > 7 {return None} else {Some(Square::new(row, col))}
     }
     fn iter_files() -> impl Iterator<Item = char> {
         (0..8).map(|i| i as u8).map(|i| i.get_file())
@@ -149,13 +153,18 @@ impl Board {
         self.data[piece as usize]
     }
     pub fn set_bitboard(&mut self, piece: Piece, bitboard: u64) {
+        let bitboard_change = self.data[piece as usize] ^ bitboard;
         self.data[piece as usize] = bitboard;
+        self.piece_locations ^= bitboard_change;
     }
     pub fn get_piece_count(&self) -> u8 {
         self.piece_locations.count_ones() as u8
     }
 
     pub fn get_piece_at(&self, square: Square) -> Option<Piece> {
+        if self.piece_locations & (1 << square) == 0 {
+            return None
+        }
         for piece in pieces::Piece::iter() {
             if self.data[piece as usize] & (1 << square) != 0 {
                 return Some(piece);
@@ -268,7 +277,38 @@ impl Board {
         }
         vision_board
     }
+    pub fn sees_like_knight(&self, square:Square) -> Bitboard {
+        let mut vision_board : Bitboard = 0;
+        let row = square.get_row();
+        let col = square.get_col();
+        if let Some(s) = Square::valid_new(row - 2, col - 1) {vision_board |= 1 << s;}
+        if let Some(s) = Square::valid_new(row - 2, col + 1) {vision_board |= 1 << s;}
+        if let Some(s) = Square::valid_new(row - 1, col - 2) {vision_board |= 1 << s;}
+        if let Some(s) = Square::valid_new(row - 1, col + 2) {vision_board |= 1 << s;}
+        if let Some(s) = Square::valid_new(row + 1, col - 2) {vision_board |= 1 << s;}
+        if let Some(s) = Square::valid_new(row + 1, col + 2) {vision_board |= 1 << s;}
+        if let Some(s) = Square::valid_new(row + 2, col - 1) {vision_board |= 1 << s;}
+        if let Some(s) = Square::valid_new(row + 2, col + 1) {vision_board |= 1 << s;}
+        vision_board
+    }
 
+    pub fn get_pieces_at_bitboard(&self, bitboard: Bitboard) -> Vec<(Piece, Square)> {
+        let mut pieces : Vec<(Piece,Square)> = Vec::new();
+        let mut bitboard = bitboard;
+        while bitboard != 0 {
+            let pos: u8 = bitboard.trailing_zeros() as u8;
+            if let Some(piece) = self.get_piece_at(pos) {pieces.push((piece,pos));}
+            bitboard &= (1<<pos);
+        }
+        pieces
+    }
+    pub fn get_active_pieces(&self) -> Vec<(Piece, Square)> {
+        let mut pieces : Vec<(Piece,Square)> = Vec::new();
+        for piece in Piece::iter_color_pieces(&self.active_player){
+            pieces.extend(self.get_pieces_at_bitboard(self.data[piece.to_index()]));
+        }
+        pieces
+    }
 }
 
 impl fmt::Display for Board {

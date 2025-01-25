@@ -20,16 +20,45 @@ pub enum Piece {
 }
 
 impl Piece {
+    const PIECES: [Piece; 12] = [
+        Piece::WhitePawn, Piece::BlackPawn,
+        Piece::WhiteRook, Piece::BlackRook,
+        Piece::WhiteKnight, Piece::BlackKnight,
+        Piece::WhiteBishop, Piece::BlackBishop,
+        Piece::WhiteQueen, Piece::BlackQueen,
+        Piece::WhiteKing, Piece::BlackKing,
+    ];
+    const WHITE_PIECES: [Piece; 6] = [
+        Piece::WhitePawn,
+        Piece::WhiteRook,
+        Piece::WhiteKnight,
+        Piece::WhiteBishop,
+        Piece::WhiteQueen,
+        Piece::WhiteKing,
+    ];
+    const BLACK_PIECES: [Piece; 6] = [
+        Piece::BlackPawn,
+        Piece::BlackRook,
+        Piece::BlackKnight,
+        Piece::BlackBishop,
+        Piece::BlackQueen,
+        Piece::BlackKing,
+    ];
     pub fn iter() -> impl Iterator<Item=Piece> {
-        const PIECES: [Piece; 12] = [
-            Piece::WhitePawn, Piece::BlackPawn,
-            Piece::WhiteRook, Piece::BlackRook,
-            Piece::WhiteKnight, Piece::BlackKnight,
-            Piece::WhiteBishop, Piece::BlackBishop,
-            Piece::WhiteQueen, Piece::BlackQueen,
-            Piece::WhiteKing, Piece::BlackKing,
-        ];
-        PIECES.iter().copied()
+        Piece::PIECES.iter().copied()
+    }
+    pub fn iter_white_pieces() -> impl Iterator<Item=Piece> {
+        Piece::WHITE_PIECES.iter().copied()
+    }
+    pub fn iter_black_pieces() -> impl Iterator<Item=Piece> {
+        Piece::BLACK_PIECES.iter().copied()
+    }
+    pub fn iter_color_pieces(color: &Color) -> impl Iterator<Item=Piece> {
+        match color {
+            Color::White => Piece::WHITE_PIECES.iter().copied(),
+            Color::Black => Piece::BLACK_PIECES.iter().copied(),
+            _ => unimplemented!()
+        }
     }
 
     pub fn get_color(&self) -> Color {
