@@ -3,6 +3,7 @@ mod chess_moves;
 mod rules;
 
 use board::Board;
+use crate::board::pieces::Color;
 
 fn main() {
     let mut b = Board::std_new();
@@ -19,4 +20,5 @@ fn main() {
     // b.sees_down_diagonal(8, true, false);
     // println!("Diagonal test true true");
     // b.sees_down_diagonal(8, true, true);
+    println!("{}", Color::White.get_pawn_direction()*2);
 }

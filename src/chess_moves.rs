@@ -140,7 +140,10 @@ impl ChessMove {
     }
     fn get_pawn_moves(board: &Board) -> Vec<ChessMove> {
         let mut moves: Vec<ChessMove> = vec![];
-
+        let active_player = &board.active_player;
+        let pawn_direction = active_player.get_pawn_direction();
+        let starting_row = active_player.get_pawn_starting_row();
+        let promotion_rank = active_player.get_pawn_promotion_row();
         moves
     }
     fn get_rook_moves(board: &Board) -> Vec<ChessMove> {

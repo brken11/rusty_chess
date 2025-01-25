@@ -153,6 +153,24 @@ impl Color {
             Color::Black => Piece::BlackPawn,
         }
     }
+    pub fn get_pawn_direction(&self) -> u8 {
+        match self{
+            Color::White => 255,
+            Color::Black => 1,
+        }
+    }
+    pub fn get_pawn_starting_row(&self) -> u8 {
+        match self{
+            Color::White => 6,
+            Color::Black => 2,
+        }
+    }
+    pub fn get_pawn_promotion_row(&self) -> u8 {
+        match self{
+            Color::White => 0,
+            Color::Black => 7,
+        }
+    }
     pub fn get_rook(&self) -> Piece {
         match self {
             Color::White => Piece::WhiteRook,
