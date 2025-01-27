@@ -2,8 +2,10 @@ mod board;
 mod chess_moves;
 mod rules;
 
+use crate::board::pieces::Piece;
 use board::Board;
 use crate::board::pieces::Color;
+use crate::chess_moves::ChessMove;
 
 fn main() {
     let mut b = Board::std_new();
@@ -20,5 +22,11 @@ fn main() {
     // b.sees_down_diagonal(8, true, false);
     // println!("Diagonal test true true");
     // b.sees_down_diagonal(8, true, true);
-    println!("{}", Color::White.get_pawn_direction()*2);
+    // println!("{}", Color::White.get_pawn_direction()*2);
+    e.set_bitboard(Piece::WhitePawn, 0x00FF000000000000);
+    println!("{}", e.to_string());
+    let possible_moves: Vec<ChessMove> = ChessMove::get_valid_moves(&mut e);
+    for m in possible_moves {
+        println!("{}", m.debug_string());
+    }
 }

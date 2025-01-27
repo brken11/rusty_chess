@@ -172,6 +172,30 @@ impl Board {
         }
         None
     }
+    pub fn is_piece_at(&self, square: Square) -> bool {
+        self.piece_locations & (1 << square) != 0
+    }
+    pub fn get_colored_piece_at(&self, square: Square, color: Color) -> Option<Piece> {
+        match color {
+            Color::White => {
+                for piece in Piece::iter_white_pieces(){
+                    if self.data[piece as usize] & (1 << square) != 0 {
+                        return Some(piece)
+                    }
+                }
+                None
+            },
+            Color::Black => {
+                for piece in Piece::iter_black_pieces(){
+                    if self.data[piece as usize] & (1 << square) != 0 {
+                        return Some(piece)
+                    }
+                }
+                None
+            },
+            _ => unimplemented!()
+        }
+    }
     pub fn find_piece_positions(&self, piece: Piece) -> Vec<Square> {
         let mut positions = Vec::new();
         let mut bitboard = self.data[piece as usize];

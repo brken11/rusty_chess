@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum Color {
     White,
     Black,
@@ -147,16 +148,33 @@ impl Piece {
 }
 
 impl Color {
+    pub fn toggle_color(&self) -> Color {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+            _ => unimplemented!()
+        }
+    }
     pub fn get_pawn(&self) -> Piece {
         match self {
             Color::White => Piece::WhitePawn,
             Color::Black => Piece::BlackPawn,
         }
     }
-    pub fn get_pawn_direction(&self) -> u8 {
+    pub fn get_pawn_direction(&self) -> i8 {
+        /* Note, this is set to 8 as to make adding or 'subtracting' from base square to be
+         * as simple as possible for pawn calculating the pawns destination square.
+         */
         match self{
-            Color::White => 255,
-            Color::Black => 1,
+            Color::White => -8,
+            Color::Black => 8,
+        }
+    }
+    pub fn is_pawn_ascending(&self) -> bool {
+        match self {
+            Color::White => false,
+            Color::Black => true,
+            _ => unreachable!()
         }
     }
     pub fn get_pawn_starting_row(&self) -> u8 {
@@ -169,6 +187,13 @@ impl Color {
         match self{
             Color::White => 0,
             Color::Black => 7,
+        }
+    }
+    pub fn get_promotion_pieces(&self) -> [Piece; 4] {
+        match self {
+            Color::White => [Piece::WhiteQueen, Piece::WhiteKnight, Piece::WhiteBishop, Piece::WhiteRook],
+            Color::Black => [Piece::BlackQueen, Piece::BlackKnight, Piece::BlackBishop, Piece::BlackRook],
+            _ => unimplemented!()
         }
     }
     pub fn get_rook(&self) -> Piece {

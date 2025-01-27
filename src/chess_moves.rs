@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Display;
+use std::ops::Add;
 use crate::rules;
 use rules::MoveResult;
 use rules::CastleType;
@@ -50,7 +53,14 @@ pub enum SpecialMoveType{
     EnableEnPassant,
 }
 
-#[derive(Debug)]
+pub enum MoveError{
+    CapturedPieceNotProvided,
+    LeavesKingInCheck,
+    PieceNotFound,
+    ObstructedMove
+}
+
+#[derive(Debug,)]
 pub struct ChessMove {
     piece: Piece,
     origin: Square,
@@ -114,14 +124,68 @@ impl ChessMove {
         return self.to_long_algebraic();
     }
 
-    pub fn get_valid_moves(board: &Board) -> Vec<ChessMove> {
-        let possible_moves: Vec<ChessMove> = Self::get_possible_moves(board);
-        Self::validate_moves(possible_moves)
+    pub fn make_move(&self, board: &mut Board) {
+        match self.special {
+            MoveData::Normal | MoveData::EnableEnPassant => {
+                board.remove_piece_at(self.origin, self.piece);
+                board.add_piece_at(self.target, self.piece);
+            }
+            _ => unimplemented!()
+        }
     }
-    fn validate_moves(moves: Vec<ChessMove>) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = vec![];
 
-        moves
+    fn make_reversible_move(&self, board: &mut Board) -> Option<Piece> {
+        //@TODO implement binary splicer for special to extract capture
+        /*
+        unsafe {
+
+        }
+         */
+        if self.special.is_capture(){
+            if self.special.is_en_passant(){
+                self.make_move(board);
+                Some(board.active_player.toggle_color().get_pawn())
+            } else {
+                let captured_piece = board.get_piece_at(self.target);
+                self.make_move(board);
+                return captured_piece;
+            }
+        } else {
+            self.make_move(board);
+            None
+        }
+    }
+
+    fn undo_move(&self, mut board: &mut Board, removed_piece: Option<Piece>) -> Result<(),MoveError>{
+        //@TODO finish implementing
+        match self.special {
+            MoveData::Normal | MoveData::EnableEnPassant => {
+                board.remove_piece_at(self.target, self.piece);
+                board.add_piece_at(self.origin, self.piece);
+                Ok(())
+            }
+            _ => unimplemented!()
+        }
+    }
+    
+    pub fn leaves_king_in_check(&self, board: &mut Board) -> bool {
+        //@TODO implement
+        let removed_piece = self.make_reversible_move(board);
+
+        //@TODO Check if king is in check.
+
+        let _ = self.undo_move(board, removed_piece);
+
+        false
+    }
+    pub fn get_valid_moves(board: &mut Board) -> Vec<ChessMove> {
+        let possible_moves: Vec<ChessMove> = Self::get_possible_moves(board);
+        Self::validate_moves(possible_moves, board)
+    }
+    fn validate_moves(moves: Vec<ChessMove>, board: &mut Board) -> Vec<ChessMove> {
+        moves.into_iter()
+            .filter(|m| !m.leaves_king_in_check(board))
+            .collect()
     }
     fn get_possible_moves(board: &Board) -> Vec<ChessMove> {
         let mut moves: Vec<ChessMove> = vec![];
@@ -139,11 +203,69 @@ impl ChessMove {
         moves
     }
     fn get_pawn_moves(board: &Board) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = vec![];
+        let mut moves: Vec<ChessMove> = Vec::new();
         let active_player = &board.active_player;
-        let pawn_direction = active_player.get_pawn_direction();
+        let pawn = active_player.get_pawn();
+        let pawn_row_ascending = active_player.is_pawn_ascending();
         let starting_row = active_player.get_pawn_starting_row();
-        let promotion_rank = active_player.get_pawn_promotion_row();
+        let promotion_row = active_player.get_pawn_promotion_row();
+        let mut bitboard = board.get_bitboard(pawn);
+
+        while(bitboard != 0){
+            let origin_square:Square = bitboard.trailing_zeros() as Square;
+            let col = origin_square.get_col();
+            let target_square:Square = if pawn_row_ascending {origin_square + 8} else {origin_square - 8};
+            let promotes = target_square.get_row() == promotion_row;
+            bitboard &= !(1<<origin_square);
+
+            //Add regular forward move
+            if !board.is_piece_at(target_square) {
+                if promotes {
+                    for promotion_piece in active_player.get_promotion_pieces().iter() {
+                        moves.push(ChessMove::new(*promotion_piece, origin_square, target_square, MoveData::Promotion))
+                    }
+                } else {
+                    moves.push(ChessMove::new(pawn, origin_square, target_square, MoveData::Normal));
+
+                    //If regular move is valid, double move may be valid
+                    if origin_square.get_row() == starting_row {
+                        let target_square: Square = if pawn_row_ascending {origin_square + 16} else {origin_square - 16};
+                        if !board.is_piece_at(target_square) {
+                            moves.push(ChessMove::new(pawn, origin_square, target_square, MoveData::EnableEnPassant));
+                        }
+                    }
+                }
+            }
+
+            fn diagonal_capture(board: &Board, moves: &mut Vec<ChessMove>, pawn: Piece, origin_square: Square,diagonal_target_square: Square, active_player: &Color, promotes: bool){
+                // Regular capture
+                if board.is_piece_at(diagonal_target_square) {
+                    if let Some(_) = board.get_colored_piece_at(diagonal_target_square, active_player.toggle_color()){
+                        if promotes {
+                            for promotion_piece in active_player.get_promotion_pieces().iter() {
+                                moves.push(ChessMove::new(*promotion_piece, origin_square, diagonal_target_square, MoveData::CapturePromotion));
+                            }
+                        } else {
+                            moves.push(ChessMove::new(pawn, origin_square, diagonal_target_square, MoveData::Capture));
+                        }
+                    }
+                // en passant
+                } else if board.en_passant_square == Some(diagonal_target_square) {
+                    moves.push(ChessMove::new(pawn, origin_square, diagonal_target_square, MoveData::EnPassant));
+                }
+            }
+            //Diagonal left Captures
+            if col > 0 {
+                let target_square:Square = target_square - 1;
+                diagonal_capture(&board, &mut moves, pawn, origin_square, target_square, active_player, promotes);
+            }
+
+            //Diagonal right Captures
+            if col < 7 {
+                let target_square:Square = target_square + 1;
+                diagonal_capture(&board, &mut moves, pawn, origin_square, target_square, active_player, promotes);
+            }
+        }
         moves
     }
     fn get_rook_moves(board: &Board) -> Vec<ChessMove> {
@@ -170,6 +292,16 @@ impl ChessMove {
         let mut moves: Vec<ChessMove> = vec![];
 
         moves
+    }
+
+    pub fn debug_string(&self) -> String {
+        format!("{} {}", self.to_long_algebraic(), self.special.to_string())
+    }
+}
+
+impl fmt::Display for ChessMove {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.debug_string().fmt(f)
     }
 }
 
@@ -285,7 +417,7 @@ impl MoveData {
             MoveData::EnPassantStalemate | MoveData::EnableEnPassantStalemate |
             MoveData::CaptureStalemate | MoveData::CapturePromotionStalemate =>
                 MoveResult::Stalemate,
-            MoveData::GeneratedOnly => unimplemented!("GeneratedOnly variant not handled for {:?}", self),
+            MoveData::GeneratedOnly | _ => unimplemented!("GeneratedOnly variant not handled for {:?}", self),
         }
     }
     fn add_check(self) -> MoveData {
@@ -319,6 +451,41 @@ impl MoveData {
             MoveData::EnPassant => MoveData::EnPassantStalemate,
             MoveData::EnableEnPassant => MoveData::EnableEnPassantStalemate,
             _ => unimplemented!("Stalemate variant not handled for {:?}", self),
+        }
+    }
+
+    fn to_string(&self) -> String {
+        match self {
+            MoveData::Normal => String::from("Normal"),
+            MoveData::NormalCheck => String::from("Check"),
+            MoveData::NormaCheckmate => String::from("Checkmate"),
+            MoveData::NormalStalemate => String::from("Stalemate"),
+            MoveData::Castling => String::from("Castling"),
+            MoveData::CastlingCheck => String::from("CastlingCheck"),
+            MoveData::CastlingCheckmate => String::from("CastlingCheckmate"),
+            MoveData::CastlingStalemate => String::from("CastlingStalemate"),
+            MoveData::Promotion => String::from("Promotion"),
+            MoveData::PromotionCheck => String::from("PromotionCheck"),
+            MoveData::PromotionCheckmate => String::from("PromotionCheckmate"),
+            MoveData::PromotionStalemate => String::from("PromotionStalemate"),
+            MoveData::EnPassant => String::from("EnPassant"),
+            MoveData::EnPassantCheck => String::from("EnPassantCheck"),
+            MoveData::EnPassantCheckmate => String::from("EnPassantCheckmate"),
+            MoveData::EnPassantStalemate => String::from("EnPassantStalemate"),
+            MoveData::EnableEnPassant => String::from("EnableEnPassant"),
+            MoveData::EnableEnPassantCheck => String::from("EnableEnPassantCheck"),
+            MoveData::EnableEnPassantCheckmate => String::from("EnableEnPassantCheckmate"),
+            MoveData::EnableEnPassantStalemate => String::from("EnableEnPassantStalemate"),
+            MoveData::Capture => String::from("Capture"),
+            MoveData::CaptureCheck => String::from("CaptureCheck"),
+            MoveData::CaptureCheckmate => String::from("CaptureCheckmate"),
+            MoveData::CaptureStalemate => String::from("CaptureStalemate"),
+            MoveData::CapturePromotion => String::from("CapturePromotion"),
+            MoveData::CapturePromotionCheck => String::from("CapturePromotionCheck"),
+            MoveData::CapturePromotionCheckmate => String::from("CapturePromotionCheckmate"),
+            MoveData::CapturePromotionStalemate => String::from("CapturePromotionStalemate"),
+            //Moves may be generated by the engine ahead of time, so they may need to be properly classified.
+            MoveData::GeneratedOnly => String::from("GeneratedOnly"),
         }
     }
 }
