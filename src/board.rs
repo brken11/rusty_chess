@@ -3,6 +3,7 @@ pub(crate) mod pieces;
 use std::fmt;
 use pieces::Color;
 use pieces::Piece;
+use itertools::Either;
 
 pub enum BoardError {
     PieceNotFound,
@@ -22,8 +23,10 @@ pub trait SquareExt {
     const SQUARES: [&'static str; 64];
     fn get_row(&self) -> u8;
     fn get_rows(&self, ascending : bool) -> impl Iterator<Item = u8>;
+    fn get_row_squares(&self, ascending : bool) -> impl Iterator<Item = Square>;
     fn get_col(&self) -> u8;
     fn get_cols(&self, ascending : bool) -> impl Iterator<Item = u8>;
+    fn get_col_squares(&self, ascending : bool) -> impl Iterator<Item = Square>;
     fn get_pos_pair(&self) -> (u8, u8);
     fn get_index(&self) -> usize;
     fn get_file(&self) -> char;
@@ -53,11 +56,25 @@ impl SquareExt for Square {
     fn get_rows(&self, ascending : bool) -> impl Iterator<Item=u8> {
         if ascending {self.get_row() + 1..8} else {0..self.get_row()}
     }
+    fn get_row_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {
+        if ascending {
+            Either::Left((self+8..64).step_by(8))
+        } else {
+            Either::Right((self.get_col()..*self).step_by(8).rev())
+        }
+    }
     fn get_col(&self) -> u8 {
         self % 8
     }
     fn get_cols(&self, ascending : bool) -> impl Iterator<Item=u8> {
         if ascending {self.get_col() + 1..8} else {0..self.get_col()}
+    }
+    fn get_col_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {
+        if ascending {
+            Either::Left(self+1..(self+8-self%8))
+        } else {
+            Either::Right((self-self%8..*self).rev())
+        }
     }
     fn get_pos_pair(&self) -> (u8, u8) {
         (self.get_row(),self.get_col())
@@ -193,7 +210,7 @@ impl Board {
                 }
                 None
             },
-            _ => unimplemented!()
+            _ => unreachable!()
         }
     }
     pub fn find_piece_positions(&self, piece: Piece) -> Vec<Square> {
@@ -269,7 +286,7 @@ impl Board {
 
     pub fn sees_down_file(&self, square:Square, ascending: bool) -> Bitboard {
         let mut vision_board : Bitboard = 0;
-        for s in square.get_rows(ascending) {
+        for s in square.get_row_squares(ascending) {
             vision_board |= 1 << s;
             if self.piece_locations & (1 << s) != 0 {
                 break;
@@ -279,7 +296,7 @@ impl Board {
     }
     pub fn sees_down_rank(&self, square:Square, ascending: bool) -> Bitboard {
         let mut vision_board : Bitboard = 0;
-        for s in square.get_cols(ascending) {
+        for s in square.get_col_squares(ascending) {
             vision_board |= 1 << s;
             if self.piece_locations & (1 << s) != 0 {
                 break;
@@ -293,7 +310,7 @@ impl Board {
                                     .zip(square.get_cols(ascending_col));
         for s in range {
             let diagonal_square : Square = Square::new(s.0, s.1);
-            vision_board |= (1 << diagonal_square);
+            vision_board |= 1 << diagonal_square;
             // println!("{}", diagonal_square.to_square_string());
             if self.piece_locations & (1 << diagonal_square) != 0 {
                 break;
@@ -316,13 +333,58 @@ impl Board {
         vision_board
     }
 
+    pub fn clear_n_capture_down_file(&self, square:Square, ascending: bool, color: Color) -> (Bitboard, Option<Square>) {
+        //Returns a bitboard of clear moves (without capture) and an Option of Square if a capturable piece is present.
+        let mut vision_board : Bitboard = 0;
+        for s in square.get_row_squares(ascending) {
+            if self.piece_locations & (1 << s) != 0 {
+                return match self.get_colored_piece_at(s, color) {
+                    Some(_) => (vision_board, Some(s)),
+                    None => (vision_board, None),
+                }
+            }
+            vision_board |= 1 << s;
+        }
+        (vision_board, None)
+    }
+    pub fn clear_n_capture_down_rank(&self, square:Square, ascending: bool, color: Color) -> (Bitboard, Option<Square>) {
+        let mut vision_board : Bitboard = 0;
+        for s in square.get_col_squares(ascending) {
+            if self.piece_locations & (1 << s) != 0 {
+                return match self.get_colored_piece_at(s, color) {
+                    Some(_) => (vision_board, Some(s)),
+                    None => (vision_board, None),
+                }
+            }
+            vision_board |= 1 << s;
+        }
+        (vision_board, None)
+    }
+    pub fn clear_n_capture_down_diagonal(&self, square:Square, ascending_row: bool, ascending_col: bool, color: Color) -> (Bitboard, Option<Square>) {
+        let mut vision_board : Bitboard = 0;
+        let range = square.get_rows(ascending_row)
+            .zip(square.get_cols(ascending_col));
+        for s in range {
+            let diagonal_square : Square = Square::new(s.0, s.1);
+            // println!("{}", diagonal_square.to_square_string());
+            if self.piece_locations & (1 << diagonal_square) != 0 {
+                return match self.get_colored_piece_at(diagonal_square, color) {
+                    Some(_) => (vision_board, Some(diagonal_square)),
+                    None => (vision_board, None),
+                }
+            }
+            vision_board |= 1 << diagonal_square;
+        }
+        (vision_board, None)
+    }
+
     pub fn get_pieces_at_bitboard(&self, bitboard: Bitboard) -> Vec<(Piece, Square)> {
         let mut pieces : Vec<(Piece,Square)> = Vec::new();
         let mut bitboard = bitboard;
         while bitboard != 0 {
             let pos: u8 = bitboard.trailing_zeros() as u8;
             if let Some(piece) = self.get_piece_at(pos) {pieces.push((piece,pos));}
-            bitboard &= (1<<pos);
+            bitboard &= 1<<pos;
         }
         pieces
     }

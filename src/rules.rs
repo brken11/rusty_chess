@@ -30,7 +30,7 @@ impl MoveResult {
 }
 
 pub enum CastleType {
-    None,
+    // None, // Yeah I don't know if this was actually needed.
     KingSide,
     QueenSide,
 }
@@ -38,7 +38,7 @@ pub enum CastleType {
 impl CastleType {
     pub fn to_string(&self) ->  String{
         match self {
-            CastleType::None => String::from("INVALID_CASTLE_STATE"),
+            // CastleType::None => String::from("INVALID_CASTLE_STATE"),
             CastleType::KingSide => String::from("O-O"),
             CastleType::QueenSide => String::from("O-O-O"),
         }

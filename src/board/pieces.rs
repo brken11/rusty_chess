@@ -58,7 +58,7 @@ impl Piece {
         match color {
             Color::White => Piece::WHITE_PIECES.iter().copied(),
             Color::Black => Piece::BLACK_PIECES.iter().copied(),
-            _ => unimplemented!()
+            _ => unreachable!()
         }
     }
 
@@ -175,6 +175,12 @@ impl Color {
             Color::White => false,
             Color::Black => true,
             _ => unreachable!()
+        }
+    }
+    pub fn get_back_rank_row(&self) -> u8 {
+        match self {
+            Color::White => 7,
+            Color::Black => 0,
         }
     }
     pub fn get_pawn_starting_row(&self) -> u8 {
