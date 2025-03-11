@@ -363,16 +363,22 @@ impl ChessMove {
             let origin_square:Square = bitboard.trailing_zeros() as Square;
             bitboard &= !(1<<origin_square);
             // Iterate through possible knight move offsets
-            for pair in ((2, 1), (2, -1), (1,2), (1,-2), (-2, 1), (-2, -1), (-1,2), (-1,-2)) {
-                let row:u8 = pair.1 + origin_square.get_row();
-                let col:u8 = pair.2 + origin_square.get_col();
-                if let Some(target_square) = Square::valid_new(row, col) {
-                    if board.is_piece_at(target_square) {
-                        if let Some(target_piece) = board.get_colored_piece_at(target_square, opponent){
-                            moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Capture));
+            for row_offset in (-2i8)..=2 {
+                if row_offset == 0 {continue;}
+                for col_offset in (-2i8)..=2 {
+                    if col_offset == 0 {continue;}
+                    if row_offset.abs() == col_offset.abs() {continue;}
+                    if let Some(target_square) = Square::valid_new(
+                        (origin_square.get_row() as i8 + row_offset) as u8,
+                        (origin_square.get_col() as i8 + col_offset) as u8
+                    ) {
+                        if board.is_piece_at(target_square) {
+                            if let Some(target_piece) = board.get_colored_piece_at(target_square, opponent) {
+                                moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Capture));
+                            }
+                        } else {
+                            moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Normal));
                         }
-                    } else {
-                        moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Normal));
                     }
                 }
             }

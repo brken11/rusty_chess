@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use crate::board::Square;
+
+#[derive(Debug, Clone, Copy)]
 pub enum Color {
     White,
     Black,
