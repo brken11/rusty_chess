@@ -355,7 +355,28 @@ impl ChessMove {
     }
     fn get_knight_moves(board: &Board) -> Vec<ChessMove> {
         let mut moves: Vec<ChessMove> = vec![];
-
+        let active_player = &board.active_player;
+        let opponent = active_player.toggle_color();
+        let knight = active_player.get_knight();
+        let mut bitboard = board.get_bitboard(knight);
+        while bitboard != 0 {
+            let origin_square:Square = bitboard.trailing_zeros() as Square;
+            bitboard &= !(1<<origin_square);
+            // Iterate through possible knight move offsets
+            for pair in ((2, 1), (2, -1), (1,2), (1,-2), (-2, 1), (-2, -1), (-1,2), (-1,-2)) {
+                let row:u8 = pair.1 + origin_square.get_row();
+                let col:u8 = pair.2 + origin_square.get_col();
+                if let Some(target_square) = Square::valid_new(row, col) {
+                    if board.is_piece_at(target_square) {
+                        if let Some(target_piece) = board.get_colored_piece_at(target_square, opponent){
+                            moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Capture));
+                        }
+                    } else {
+                        moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Normal));
+                    }
+                }
+            }
+        }
         moves
     }
     fn get_bishop_moves(board: &Board) -> Vec<ChessMove> {

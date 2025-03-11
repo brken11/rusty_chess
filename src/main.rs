@@ -26,6 +26,7 @@ fn main() {
     e.set_bitboard(Piece::WhitePawn, 0x00FF000000000000);
     e.set_bitboard(Piece::WhiteRook, 0x0000008000000000);
     e.set_bitboard(Piece::BlackRook, 0x0000000200000000);
+    e.set_bitboard(Piece::BlackPawn, 0x0000300000000000);
     println!("{}", e.to_string());
     let possible_moves: Vec<ChessMove> = ChessMove::get_valid_moves(&mut e);
     for m in possible_moves {
