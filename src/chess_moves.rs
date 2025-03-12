@@ -123,7 +123,7 @@ impl ChessMove {
         self.to_long_algebraic()
     }
 
-    pub fn make_move(&self, board: &mut Board) {
+    fn make_move_on_board(&self, board: &mut Board){
         match self.meta_data.get_move_type() {
             MoveType::Regular => {
                 if self.meta_data.is_capture() {
@@ -182,55 +182,108 @@ impl ChessMove {
                 _ = board.add_piece_at(self.target, self.piece);
             }
         }
-    }
-
-    fn make_reversible_move(&self, board: &mut Board) -> Option<Piece> {
-        //@TODO implement binary splicer for special to extract capture
-        /*
-        unsafe {
-
+        board.active_player = board.active_player.toggle_color();
+        match board.active_player {
+            Color::White => {
+                board.full_move_number += 1;
+            }
+            Color::Black => {},
         }
-         */
-        if self.meta_data.is_capture(){
-            if self.meta_data.is_en_passant(){
-                self.make_move(board);
-                Some(board.active_player.toggle_color().get_pawn())
-            } else {
-                let captured_piece = board.get_piece_at(self.target);
-                self.make_move(board);
-                captured_piece
+        if self.meta_data.reset_halfmove() || self.piece.is_pawn() {
+            board.half_move_clock = 0;
+        }
+    }
+    pub fn make_move(&self, board: &mut Board) {
+        self.make_move_on_board(board);
+    }
+    fn make_reversible_move(&self, board: &mut Board) -> (Option<Piece>, Option<Square>, u8) {
+        let old_en_passant_square = board.en_passant_square;
+        let old_half_move_clock = board.half_move_clock;
+
+        let removed_piece = if self.meta_data.is_capture() {
+            match self.meta_data.get_move_type() {
+                MoveType::Regular | MoveType::Promotion => board.get_piece_at(self.target),
+                MoveType::EnPassant => board.get_piece_at(
+                    Square::new(self.origin.get_row(), self.target.get_col())
+                ),
+                _ => !unreachable!()
             }
         } else {
-            self.make_move(board);
             None
-        }
+        };
+
+        self.make_move_on_board(board);
+
+        (removed_piece, old_en_passant_square, old_half_move_clock)
     }
 
-    fn undo_move(&self, mut board: &mut Board, removed_piece: Option<Piece>) -> Result<(),MoveError>{
-        //@TODO finish implementing
-        match self.meta_data {
-            MoveData::Normal | MoveData::EnableEnPassant => {
-                let _ = board.remove_piece_at(self.target, self.piece);
-                let _ = board.add_piece_at(self.origin, self.piece);
-                Ok(())
+    fn undo_move(&self, mut board: &mut Board, removed_piece: Option<Piece>, old_en_passant_square: Option<Square>, old_half_move_clock: u8) -> Result<(),MoveError>{
+        board.active_player = board.active_player.toggle_color();
+        match board.active_player {
+            Color::White => {},
+            Color::Black => {
+                board.full_move_number -= 1;
             }
-            MoveData::Capture => {
-                let _ = board.remove_piece_at(self.target, self.piece);
-                let _ = board.add_piece_at(self.target, removed_piece.unwrap());
-                let _ = board.add_piece_at(self.origin, self.piece);
-                Ok(())
-            }
-            _ => unimplemented!()
         }
+        board.en_passant_square = old_en_passant_square;
+        board.half_move_clock = old_half_move_clock;
+
+        match self.meta_data.get_move_type() {
+            MoveType::Regular => {
+                let _ = board.remove_piece_at(self.target, self.piece);
+                let _ = board.add_piece_at(self.origin, self.piece);
+                if self.meta_data.is_capture() {
+                    let _ = board.add_piece_at(self.target, removed_piece.unwrap());
+                }
+            }
+            MoveType::Promotion => {
+                let _ = board.remove_piece_at(self.target, self.piece);
+                let _ = board.add_piece_at(self.origin, board.active_player.get_pawn());
+                if self.meta_data.is_capture() {
+                    let _ = board.add_piece_at(self.target, removed_piece.unwrap());
+                }
+            }
+            MoveType::EnPassant => {
+                let _ = board.remove_piece_at(self.target, self.piece);
+                let _ = board.add_piece_at(self.origin, self.piece);
+                let _ = board.add_piece_at(Square::new(self.origin.get_row(), self.target.get_col()), removed_piece.unwrap());
+            }
+            MoveType::Castling => {
+                let color = self.piece.get_color();
+                let rook = color.get_rook();
+                let rook_row = color.get_back_rank_row();
+
+                //Undo king move
+                _ = board.remove_piece_at(self.origin, self.piece);
+                _ = board.add_piece_at(self.target, self.piece);
+
+                //Undo rook move
+                let rook_col_old: u8;
+                let rook_col_new: u8;
+                (rook_col_old, rook_col_new) = if self.target > self.origin { // King side castle
+                    (7, 5)
+                } else { // Queen side castle
+                    (0, 3)
+                };
+                let rook_square = Square::new(rook_row, rook_col_new);
+                _ = board.remove_piece_at(rook_square, rook);
+                let rook_square = Square::new(rook_row, rook_col_old);
+                _ = board.add_piece_at(rook_square, rook);
+            }
+        }
+
+        Ok(())
     }
     
     pub fn leaves_king_in_check(&self, board: &mut Board) -> bool {
-        //@TODO implement
-        let removed_piece = self.make_reversible_move(board);
+        let (
+            removed_piece,
+            old_en_passant_range,
+            old_half_move_clock) = self.make_reversible_move(board);
 
-        //@TODO Check if king is in check.
+        //TODO- Add code to check if king is in check
 
-        let _ = self.undo_move(board, removed_piece);
+        let _ = self.undo_move(board, removed_piece, old_en_passant_range, old_half_move_clock);
 
         false
     }
@@ -244,23 +297,21 @@ impl ChessMove {
             .collect()
     }
     fn get_possible_moves(board: &Board) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = vec![];
+        let mut moves: Vec<ChessMove> = Vec::with_capacity(64);
         for piece in Piece::iter_color_pieces(&board.active_player){
             match piece {
-                Piece::WhitePawn | Piece::BlackPawn=> moves.extend(ChessMove::get_pawn_moves(&board)),
-                Piece::WhiteRook | Piece::BlackRook=> moves.extend(ChessMove::get_rook_moves(&board)),
-                Piece::WhiteKnight | Piece::BlackKnight=> moves.extend(ChessMove::get_knight_moves(&board)),
-                Piece::WhiteBishop | Piece::BlackBishop=> moves.extend(ChessMove::get_bishop_moves(&board)),
-                Piece::WhiteQueen | Piece::BlackQueen=> moves.extend(ChessMove::get_queen_moves(&board)),
-                Piece::WhiteKing | Piece::BlackKing=> moves.extend(ChessMove::get_king_moves(&board)),
-                _ => !unreachable!(),
+                Piece::WhitePawn | Piece::BlackPawn=> ChessMove::add_pawn_moves(&board, &mut moves),
+                Piece::WhiteRook | Piece::BlackRook=> ChessMove::add_rook_moves(&board, &mut moves),
+                Piece::WhiteKnight | Piece::BlackKnight=> ChessMove::add_knight_moves(&board, &mut moves),
+                Piece::WhiteBishop | Piece::BlackBishop=> ChessMove::add_bishop_moves(&board, &mut moves),
+                Piece::WhiteQueen | Piece::BlackQueen=> ChessMove::add_queen_moves(&board, &mut moves),
+                Piece::WhiteKing | Piece::BlackKing=> ChessMove::add_king_moves(&board, &mut moves),
             }
         }
         moves
     }
-    fn get_pawn_moves(board: &Board) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = Vec::new();
-        let active_player = &board.active_player;
+    fn add_pawn_moves(board: &Board, moves: &mut Vec<ChessMove>) {
+        let active_player = board.active_player;
         let pawn = active_player.get_pawn();
         let pawn_row_ascending = active_player.is_pawn_ascending();
         let starting_row = active_player.get_pawn_starting_row();
@@ -270,12 +321,12 @@ impl ChessMove {
         while bitboard != 0 {
             let origin_square:Square = bitboard.trailing_zeros() as Square;
             let col = origin_square.get_col();
-            let target_square:Square = if pawn_row_ascending {origin_square + 8} else {origin_square - 8};
+            let target_square:Square = origin_square + active_player.get_pawn_direction();
             let promotes = target_square.get_row() == promotion_row;
             bitboard &= !(1<<origin_square);
 
             //Add regular forward move
-            if !board.is_piece_at(target_square) {
+            if ! board.is_piece_at(target_square) {
                 if promotes {
                     for promotion_piece in active_player.get_promotion_pieces().iter() {
                         moves.push(ChessMove::new(*promotion_piece, origin_square, target_square, MoveData::Promotion))
@@ -293,7 +344,7 @@ impl ChessMove {
                 }
             }
 
-            fn diagonal_capture(board: &Board, moves: &mut Vec<ChessMove>, pawn: Piece, origin_square: Square,diagonal_target_square: Square, active_player: &Color, promotes: bool){
+            fn diagonal_capture(board: &Board, moves: &mut Vec<ChessMove>, pawn: Piece, origin_square: Square,diagonal_target_square: Square, active_player: Color, promotes: bool){
                 // Regular capture
                 if board.is_piece_at(diagonal_target_square) {
                     if let Some(_) = board.get_colored_piece_at(diagonal_target_square, active_player.toggle_color()){
@@ -313,20 +364,18 @@ impl ChessMove {
             //Diagonal left Captures
             if col > 0 {
                 let target_square:Square = target_square - 1;
-                diagonal_capture(&board, &mut moves, pawn, origin_square, target_square, active_player, promotes);
+                diagonal_capture(&board, moves, pawn, origin_square, target_square, active_player, promotes);
             }
 
             //Diagonal right Captures
             if col < 7 {
                 let target_square:Square = target_square + 1;
-                diagonal_capture(&board, &mut moves, pawn, origin_square, target_square, active_player, promotes);
+                diagonal_capture(&board, moves, pawn, origin_square, target_square, active_player, promotes);
             }
         }
-        moves
     }
-    fn get_rook_moves(board: &Board) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = Vec::new();
-        let active_player = &board.active_player;
+    fn add_rook_moves(board: &Board, moves: &mut Vec<ChessMove>) {
+        let active_player = board.active_player;
         let rook = active_player.get_rook();
         let mut bitboard = board.get_bitboard(rook);
         while bitboard != 0 {
@@ -351,19 +400,27 @@ impl ChessMove {
                 }
             }
         }
-        moves
     }
-    fn get_knight_moves(board: &Board) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = vec![];
-        let active_player = &board.active_player;
+    fn add_knight_moves(board: &Board, moves: &mut Vec<ChessMove>) {
+
+        let active_player = board.active_player;
         let opponent = active_player.toggle_color();
         let knight = active_player.get_knight();
         let mut bitboard = board.get_bitboard(knight);
+        fn add_if_valid(board: &Board, moves: &mut Vec<ChessMove>, knight: Piece, origin_square: Square, target_square: Square, opponent: Color) {
+            if board.is_piece_at(target_square) {
+                if Some(board.get_colored_piece_at(target_square, opponent)).is_some() {
+                    moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Capture));
+                }
+            } else {
+                moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Normal));
+            }
+        }
         while bitboard != 0 {
             let origin_square:Square = bitboard.trailing_zeros() as Square;
             bitboard &= !(1<<origin_square);
             // Iterate through possible knight move offsets
-            for row_offset in (-2i8)..=2 {
+            /*for row_offset in (-2i8)..=2 {
                 if row_offset == 0 {continue;}
                 for col_offset in (-2i8)..=2 {
                     if col_offset == 0 {continue;}
@@ -381,24 +438,164 @@ impl ChessMove {
                         }
                     }
                 }
+            }*/
+            let row = origin_square.get_row();
+            let col = origin_square.get_col();
+            if let Some(target_square) = Square::valid_new(row - 2, col - 1) { add_if_valid(board, moves, knight, origin_square, target_square, opponent)};
+            if let Some(target_square) = Square::valid_new(row - 2, col + 1) { add_if_valid(board, moves, knight, origin_square, target_square, opponent)};
+            if let Some(target_square) = Square::valid_new(row - 1, col - 2) { add_if_valid(board, moves, knight, origin_square, target_square, opponent)};
+            if let Some(target_square) = Square::valid_new(row - 1, col + 2) { add_if_valid(board, moves, knight, origin_square, target_square, opponent)};
+            if let Some(target_square) = Square::valid_new(row + 1, col - 2) { add_if_valid(board, moves, knight, origin_square, target_square, opponent)};
+            if let Some(target_square) = Square::valid_new(row + 1, col + 2) { add_if_valid(board, moves, knight, origin_square, target_square, opponent)};
+            if let Some(target_square) = Square::valid_new(row + 2, col - 1) { add_if_valid(board, moves, knight, origin_square, target_square, opponent)};
+            if let Some(target_square) = Square::valid_new(row + 2, col + 1) { add_if_valid(board, moves, knight, origin_square, target_square, opponent)};
+        }
+    }
+    fn add_bishop_moves(board: &Board, moves: &mut Vec<ChessMove>) {
+        let active_player = board.active_player;
+        let bishop = active_player.get_bishop();
+        let mut bitboard = board.get_bitboard(bishop);
+
+        while bitboard != 0 {
+            let origin_square:Square = bitboard.trailing_zeros() as Square;
+            bitboard &= !(1<<origin_square);
+
+            for i in 0..4 {
+                let ascending_row = i/2 == 0;
+                let ascending_col = i%2 == 0;
+                let result = board.clear_n_capture_down_diagonal(origin_square, ascending_row, ascending_col, active_player.toggle_color());
+
+                let mut movable_squares = result.0;
+                let capture_square = result.1;
+
+                while movable_squares != 0 {
+                    let target_square = movable_squares.trailing_zeros() as Square;
+                    movable_squares &= !(1<<target_square);
+                    moves.push(ChessMove::new(bishop, origin_square, target_square, MoveData::Normal));
+                }
+
+                if let Some(target_square) = capture_square {
+                    moves.push(ChessMove::new(bishop, origin_square, target_square, MoveData::Capture));
+                }
             }
         }
-        moves
     }
-    fn get_bishop_moves(board: &Board) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = vec![];
+    fn add_queen_moves(board: &Board, moves: &mut Vec<ChessMove>) {
+        let active_player = board.active_player;
+        let queen = active_player.get_queen();
+        let mut bitboard = board.get_bitboard(queen);
 
-        moves
+        while bitboard != 0 {
+            let origin_square:Square = bitboard.trailing_zeros() as Square;
+            bitboard &= !(1<<origin_square);
+
+            for i in 0..4 {
+                let ascending = i/2 == 0;
+                let ascending_col = i%2 == 0;
+
+                //Handle straight moves
+                {
+                    let result = if i % 2 == 0 {
+                        board.clear_n_capture_down_rank(origin_square, ascending, active_player.toggle_color())
+                    } else {
+                        board.clear_n_capture_down_file(origin_square, ascending, active_player.toggle_color())
+                    };
+                    let mut movable_squares = result.0;
+                    let capture_square = result.1;
+
+                    while movable_squares != 0 {
+                        let target_square = movable_squares.trailing_zeros() as Square;
+                        movable_squares &= !(1 << target_square);
+                        moves.push(ChessMove::new(queen, origin_square, target_square, MoveData::Normal));
+                    }
+                    if let Some(target_square) = capture_square {
+                        moves.push(ChessMove::new(queen, origin_square, target_square, MoveData::Capture));
+                    }
+                }
+
+                //Handle diagonal moves
+                {
+                    let result = board.clear_n_capture_down_diagonal(origin_square, ascending, ascending_col, active_player.toggle_color());
+                    let mut movable_squares = result.0;
+                    let capture_square = result.1;
+
+                    while movable_squares != 0 {
+                        let target_square = movable_squares.trailing_zeros() as Square;
+                        movable_squares &= !(1 << target_square);
+                        moves.push(ChessMove::new(queen, origin_square, target_square, MoveData::Normal));
+                    }
+                    if let Some(target_square) = capture_square {
+                        moves.push(ChessMove::new(queen, origin_square, target_square, MoveData::Capture));
+                    }
+                }
+
+            }
+        }
+
+
     }
-    fn get_queen_moves(board: &Board) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = vec![];
+    fn add_king_moves(board: &Board, moves: &mut Vec<ChessMove>) {
+        let active_player = board.active_player;
+        let opponent = active_player.toggle_color();
+        let king = active_player.get_king();
+        let mut bitboard = board.get_bitboard(king);
 
-        moves
-    }
-    fn get_king_moves(board: &Board) -> Vec<ChessMove> {
-        let mut moves: Vec<ChessMove> = vec![];
+        while bitboard != 0 {
+            let origin_square:Square = bitboard.trailing_zeros() as Square;
+            bitboard &= !(1<<origin_square);
 
-        moves
+            // Calculate regular king moves
+            for col_offset in -1..1{
+                for row_offset in -1..1{
+                    if col_offset == 0 && row_offset == 0 {continue;}
+
+                    if let Some(target_square) = Square::valid_new(origin_square.get_row() + row_offset as u8, origin_square.get_col() + col_offset as u8){
+                        if board.is_piece_at(target_square) {
+                            if board.get_colored_piece_at(target_square, opponent).is_some(){
+                                moves.push(ChessMove::new(king, origin_square, target_square, MoveData::Capture));
+                            }
+                        } else {
+                            moves.push(ChessMove::new(king, origin_square, target_square, MoveData::Normal));
+                        }
+                    }
+                }
+            }
+
+            // Calculate castle
+            match active_player {
+                /*
+                 * 0, 7, 56, and 63 are the starting locations of the rooks
+                 * If the flag is enabled, the rooks will be there and the king in its original position
+                 * To go up and down a row you need to subtract or add 8, to go left or right you add
+                 * 1, so +2/-2 describes the kings movement in a Castle to a T.
+                 */
+                Color::White => {
+                    if board.castling_rights.white_king_side {
+                        if board.sees_down_rank(origin_square, true) & (1<<63) == 1<<63{
+                            moves.push(ChessMove::new(king, origin_square, origin_square + 2, MoveData::Castling));
+                        }
+                    }
+                    if board.castling_rights.white_queen_side {
+                        if board.sees_down_rank(origin_square, true) & (1<<56) == 1<<56{
+                            moves.push(ChessMove::new(king, origin_square, origin_square - 2, MoveData::Castling));
+                        }
+                    }
+                },
+                Color::Black => {
+                    if board.castling_rights.black_king_side {
+                        if board.sees_down_rank(origin_square, true) & (1<<7) == 1<<7{
+                            moves.push(ChessMove::new(king, origin_square, origin_square + 2, MoveData::Castling));
+                        }
+                    }
+                    if board.castling_rights.black_queen_side {
+                        if board.sees_down_rank(origin_square, true) & (1<<0) == 1<<0{
+                            moves.push(ChessMove::new(king, origin_square, origin_square - 2, MoveData::Castling));
+                        }
+                    }
+                }
+            }
+        }
+
     }
 
     pub fn debug_string(&self) -> String {
@@ -501,10 +698,10 @@ impl MoveData {
     }
     pub fn is_capture(&self) -> bool {
         match self {
-            MoveData::Capture | MoveData::CaptureCheck | MoveData::CaptureCheckmate |
-            MoveData::CapturePromotion | MoveData::CapturePromotionCheck |
-            MoveData::CapturePromotionCheckmate | MoveData::EnPassant | MoveData::EnPassantCheck |
-            MoveData::EnPassantCheckmate | MoveData::EnPassantStalemate => true,
+            MoveData::Capture | MoveData::CaptureCheck | MoveData::CaptureCheckmate | MoveData::CaptureStalemate |
+            MoveData::CapturePromotion | MoveData::CapturePromotionCheck | MoveData::CapturePromotionCheckmate | MoveData::CapturePromotionStalemate |
+            MoveData::EnPassant | MoveData::EnPassantCheck | MoveData::EnPassantCheckmate | MoveData::EnPassantStalemate
+                => true,
             _ => false,
         }
     }
@@ -519,6 +716,16 @@ impl MoveData {
         match self {
             MoveData::EnableEnPassant | MoveData::EnableEnPassantCheck |
             MoveData::EnableEnPassantCheckmate | MoveData::EnableEnPassantStalemate => true,
+            _ => false,
+        }
+    }
+    pub fn reset_halfmove(&self) -> bool {
+        match self{
+            MoveData::Capture | MoveData::CaptureCheck | MoveData::CaptureCheckmate | MoveData::CaptureStalemate |
+            MoveData::EnPassant | MoveData::EnPassantCheck | MoveData::EnPassantCheckmate | MoveData::EnPassantStalemate |
+            MoveData::Promotion | MoveData::PromotionCheck | MoveData::PromotionCheckmate | MoveData::PromotionStalemate |
+            MoveData::CapturePromotion | MoveData::CapturePromotionCheck | MoveData::CapturePromotionCheckmate | MoveData::CapturePromotionStalemate
+                => true,
             _ => false,
         }
     }

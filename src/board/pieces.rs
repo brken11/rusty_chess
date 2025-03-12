@@ -59,8 +59,7 @@ impl Piece {
     pub fn iter_color_pieces(color: &Color) -> impl Iterator<Item=Piece> {
         match color {
             Color::White => Piece::WHITE_PIECES.iter().copied(),
-            Color::Black => Piece::BLACK_PIECES.iter().copied(),
-            _ => unreachable!()
+            Color::Black => Piece::BLACK_PIECES.iter().copied()
         }
     }
 
@@ -154,7 +153,6 @@ impl Color {
         match self {
             Color::White => Color::Black,
             Color::Black => Color::White,
-            _ => unimplemented!()
         }
     }
     pub fn get_pawn(&self) -> Piece {
@@ -163,12 +161,12 @@ impl Color {
             Color::Black => Piece::BlackPawn,
         }
     }
-    pub fn get_pawn_direction(&self) -> i8 {
+    pub fn get_pawn_direction(&self) -> u8 {
         /* Note, this is set to 8 as to make adding or 'subtracting' from base square to be
          * as simple as possible for pawn calculating the pawns destination square.
          */
         match self{
-            Color::White => -8,
+            Color::White => 248, // -8 for u8s
             Color::Black => 8,
         }
     }
@@ -176,7 +174,6 @@ impl Color {
         match self {
             Color::White => false,
             Color::Black => true,
-            _ => unreachable!()
         }
     }
     pub fn get_back_rank_row(&self) -> u8 {
@@ -201,7 +198,6 @@ impl Color {
         match self {
             Color::White => [Piece::WhiteQueen, Piece::WhiteKnight, Piece::WhiteBishop, Piece::WhiteRook],
             Color::Black => [Piece::BlackQueen, Piece::BlackKnight, Piece::BlackBishop, Piece::BlackRook],
-            _ => unimplemented!()
         }
     }
     pub fn get_rook(&self) -> Piece {
