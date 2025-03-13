@@ -91,9 +91,9 @@ impl SquareExt for Square {
     }
     fn get_rows(&self, ascending : bool) -> Box<dyn Iterator<Item=u8>> {
         if ascending {
-            Box::new((self.get_row() + 1..8).rev())
+            Box::new(self.get_row() + 1..8)
         } else{
-            Box::new(0..self.get_row())
+            Box::new((0..self.get_row()).rev())
         }
     }
     fn get_row_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {
@@ -110,7 +110,7 @@ impl SquareExt for Square {
         if ascending {
             Box::new(self.get_col() + 1..8)
         } else {
-            Box::new((0..self.get_col()).into_iter().rev())
+            Box::new((0..self.get_col()).rev())
         }
     }
     fn get_col_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {

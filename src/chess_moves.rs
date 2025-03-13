@@ -189,7 +189,7 @@ impl ChessMove {
             }
             Color::Black => {},
         }
-        if self.meta_data.reset_halfmove() || self.piece.is_pawn() {
+        if self.meta_data.reset_half_move() || self.piece.is_pawn() {
             board.half_move_clock = 0;
         }
     }
@@ -409,7 +409,7 @@ impl ChessMove {
         let mut bitboard = board.get_bitboard(knight);
         fn add_if_valid(board: &Board, moves: &mut Vec<ChessMove>, knight: Piece, origin_square: Square, target_square: Square, opponent: Color) {
             if board.is_piece_at(target_square) {
-                if Some(board.get_colored_piece_at(target_square, opponent)).is_some() {
+                if board.get_colored_piece_at(target_square, opponent).is_some() {
                     moves.push(ChessMove::new(knight, origin_square, target_square, MoveData::Capture));
                 }
             } else {
@@ -719,7 +719,7 @@ impl MoveData {
             _ => false,
         }
     }
-    pub fn reset_halfmove(&self) -> bool {
+    pub fn reset_half_move(&self) -> bool {
         match self{
             MoveData::Capture | MoveData::CaptureCheck | MoveData::CaptureCheckmate | MoveData::CaptureStalemate |
             MoveData::EnPassant | MoveData::EnPassantCheck | MoveData::EnPassantCheckmate | MoveData::EnPassantStalemate |
