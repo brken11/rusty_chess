@@ -56,7 +56,9 @@ pub enum MoveError{
     CapturedPieceNotProvided,
     LeavesKingInCheck,
     PieceNotFound,
-    ObstructedMove
+    ObstructedMove,
+    DisambiguousMove,
+    ParsingError,
 }
 
 #[derive(Debug,)]
@@ -76,7 +78,10 @@ impl ChessMove {
             meta_data: special,
         }
     }
-    pub fn assemble_special_move(move_type: MoveType, captures: bool, enables_en_passant: bool, result: MoveResult) -> MoveData {
+    pub fn from_long_algebraic(long_algebraic_notation: String) -> Result<ChessMove, Err()> {
+
+    }
+    fn assemble_special_move(move_type: MoveType, captures: bool, enables_en_passant: bool, result: MoveResult) -> MoveData {
         if enables_en_passant {
             build_move_type(MoveData::EnableEnPassant, result)
         } else {
@@ -193,6 +198,7 @@ impl ChessMove {
             board.half_move_clock = 0;
         }
     }
+
     pub fn make_move(&self, board: &mut Board) {
         self.make_move_on_board(board);
     }
@@ -281,11 +287,11 @@ impl ChessMove {
             old_en_passant_range,
             old_half_move_clock) = self.make_reversible_move(board);
 
-        //TODO- Add code to check if king is in check
+        let king_in_check = board.is_in_check(self.piece.get_color());
 
         let _ = self.undo_move(board, removed_piece, old_en_passant_range, old_half_move_clock);
 
-        false
+        king_in_check
     }
     pub fn get_valid_moves(board: &mut Board) -> Vec<ChessMove> {
         let possible_moves: Vec<ChessMove> = Self::get_possible_moves(board);

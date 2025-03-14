@@ -365,7 +365,7 @@ impl Board {
     ///
     /// `Some(Square)` if the king is found, otherwise `None`.
     pub fn king_square(&self) ->  Option<Square> {
-        self.king_square_by_color(&self.active_player)
+        self.king_square_by_color(self.active_player)
     }
     /// Retrieves the king's square for the specified color.
     ///
@@ -376,10 +376,28 @@ impl Board {
     /// # Returns
     ///
     /// `Some(Square)` if found, otherwise `None`.
-    pub fn king_square_by_color(&self, color: &Color) -> Option<Square> {
+    pub fn king_square_by_color(&self, color: Color) -> Option<Square> {
         match color {
             Color::White => Some(self.data[Piece::WhiteKing as usize].trailing_zeros() as Square),
             Color::Black => Some(self.data[Piece::BlackKing as usize].trailing_zeros() as Square)
+        }
+    }
+
+    /// Is the king of a given color in check?
+    ///
+    /// # Arguments
+    ///
+    /// * `color` - The color of the king to check if is check.
+    ///
+    /// # Returns
+    ///
+    /// `true` - If there is a piece that threatens the king
+    /// `false` - The king is not threatened by any pieces
+    pub fn is_in_check(&self, color: Color) -> bool {
+        if let Some(king_square) = self.king_square_by_color(color) {
+            self.is_threatened(king_square)
+        } else {
+            false
         }
     }
 
@@ -474,6 +492,163 @@ impl Board {
         }
         rendered_board.push_str("   | a  b  c  d  e  f  g  h |\n");
         rendered_board
+    }
+
+    /// Checks if the given square is threatened by an opponent's piece.
+    ///
+    /// This method evaluates potential threats from all opponent piece types,
+    /// including attacks along ranks, files, diagonals, and knight moves.
+    ///
+    /// # Parameters
+    /// - `square`: The board position to check.
+    ///
+    /// # Returns
+    /// - `true` if the square is under attack.
+    /// - `false` if the square is safe.
+    pub fn is_threatened(&self, square: Square) -> bool {
+        let opponent = if let Some(threatened_piece) = self.get_piece_at(square) { threatened_piece.get_color().toggle_color() } else {return false;};
+
+        fn captures_straight(board: &Board, distance: u8, square: Square, opponent: Color) -> Option<bool> {
+            if board.piece_locations & (1 << square) == 0 {
+                return None;
+            }
+            if let Some(piece)= board.get_colored_piece_at(square, opponent) {match piece{
+                Piece::WhiteKing | Piece::BlackKing => {
+                    Some(distance==1)
+                }
+                Piece::WhiteQueen | Piece::BlackQueen | Piece::WhiteRook | Piece::BlackRook => {
+                    Some(true)
+                }
+                _ => Some(false)
+            }} else {
+                Some(false)
+            }
+        }
+        fn captures_diagonally(board: &Board, distance: u8, square: Square, opponent: Color, ascending_row: bool) -> Option<bool> {
+            if board.piece_locations & (1 << square) == 0 {
+                return None;
+            }
+            if let Some(piece)= board.get_colored_piece_at(square, opponent) {match piece{
+                Piece::WhiteQueen | Piece::BlackQueen | Piece::WhiteBishop | Piece::BlackBishop => {
+                    Some(true)
+                }
+                Piece::WhitePawn => {
+                    if distance == 1 && ascending_row == false {
+                        Some(true)
+                    } else {
+                        Some(false)
+                    }
+                }
+                Piece::BlackPawn => {
+                    if distance == 1 && ascending_row == true {
+                        Some(true)
+                    } else {
+                        Some(false)
+                    }
+                }
+                Piece::WhiteKing | Piece::BlackKing => {
+                    if distance == 1 {
+                        Some(true)
+                    } else {
+                        Some(false)
+                    }
+                }
+                _ => Some(false)
+            }} else {
+                Some(false)
+            }
+        }
+        /*fn capturable_by(
+            board: &Board,
+            distance: u8,
+            square: Square,
+            opponent: Color,
+            diagonal: bool, // true for diagonal, false for straight
+            ascending_row: bool, // needed for pawns
+        ) -> Option<bool> {
+            if board.piece_locations & (1 << square) == 0 {
+                return None;
+            }
+            if let Some(piece) = board.get_colored_piece_at(square, opponent) {
+                match piece {
+                    Piece::WhiteKing | Piece::BlackKing => Some(distance == 1),
+                    Piece::WhiteQueen | Piece::BlackQueen => Some(true),
+                    Piece::WhiteRook | Piece::BlackRook if !diagonal => Some(true),
+                    Piece::WhiteBishop | Piece::BlackBishop if diagonal => Some(true),
+                    Piece::WhitePawn if diagonal && !ascending_row => Some(distance == 1),
+                    Piece::BlackPawn if diagonal && ascending_row => Some(distance == 1),
+                    _ => Some(false),
+                }
+            } else {
+                None
+            }
+        }*/
+        fn is_knight_at(board: &Board, knight_square: Square, knight: Piece) -> bool {
+            if board.piece_locations & (1 << knight_square) == 0 {
+                return false;
+            }
+            match board.get_piece_at(knight_square) {
+                Some(piece) => {knight == piece}
+                _ => false
+            }
+        }
+
+        //Check ranks and file
+        for i in 0..2 {
+            let ascending = i== 1;
+            let mut distance = 1;
+            for s in square.get_row_squares(ascending) {
+                let threatening_square = captures_straight(self, distance, square, opponent);
+                match threatening_square {
+                    Some(true) => { return true; }
+                    Some(false) => { break; }
+                    None => { distance += 1; }
+                }
+            }
+            distance = 1;
+            for s in square.get_col_squares(ascending) {
+                let threatening_square = captures_straight(self, distance, square, opponent);
+                match threatening_square {
+                    Some(true) => { return true; }
+                    Some(false) => { break; }
+                    None => { distance += 1; }
+                }
+            }
+        }
+        //Check diagonals
+        for i in 0..4 {
+            let ascending_row = i/2 == 0;
+            let ascending_col = i%2 == 0;
+
+            let range = square.get_rows(ascending_row)
+                .zip(square.get_cols(ascending_col));
+            let mut distance = 1;
+            for s in range {
+                let diagonal_square : Square = Square::new(s.0, s.1);
+                let threatening_square = captures_diagonally(self, distance, diagonal_square, opponent, ascending_row);
+                match threatening_square {
+                    Some(true) => { return true; }
+                    Some(false) => { break; }
+                    None => { distance += 1; }
+                }
+            }
+        }
+        //Check knights
+        {
+            let row = square.get_row();
+            let col = square.get_col();
+            let enemy_knight = opponent.get_knight();
+            if let Some(target_square) = Square::valid_new(row - 2, col - 1) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+            if let Some(target_square) = Square::valid_new(row - 2, col + 1) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+            if let Some(target_square) = Square::valid_new(row - 1, col - 2) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+            if let Some(target_square) = Square::valid_new(row - 1, col + 2) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+            if let Some(target_square) = Square::valid_new(row + 1, col - 2) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+            if let Some(target_square) = Square::valid_new(row + 1, col + 2) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+            if let Some(target_square) = Square::valid_new(row + 2, col - 1) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+            if let Some(target_square) = Square::valid_new(row + 2, col + 1) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+        }
+
+        false
     }
 
     /// Computes clear squares along a file starting from a given square.
