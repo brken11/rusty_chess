@@ -78,9 +78,9 @@ impl ChessMove {
             meta_data: special,
         }
     }
-    pub fn from_long_algebraic(long_algebraic_notation: String) -> Result<ChessMove, Err()> {
-
-    }
+    // pub fn from_long_algebraic(long_algebraic_notation: String) -> Result<ChessMove, None> {
+    //
+    // }
     fn assemble_special_move(move_type: MoveType, captures: bool, enables_en_passant: bool, result: MoveResult) -> MoveData {
         if enables_en_passant {
             build_move_type(MoveData::EnableEnPassant, result)
