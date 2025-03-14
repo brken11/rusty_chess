@@ -7,6 +7,7 @@ use rules::CastleType;
 use crate::board::{pieces, Square, SquareExt, Board};
 use pieces::Piece;
 use crate::board::pieces::Color;
+use crate::chess_moves::MoveError::{IllegalMove, LeavesKingInCheck, ObstructedMove};
 use crate::rules::MoveType;
 
 #[repr(u8)]
@@ -58,6 +59,7 @@ pub enum MoveError{
     PieceNotFound,
     ObstructedMove,
     DisambiguousMove,
+    IllegalMove,
     ParsingError,
 }
 
@@ -76,6 +78,14 @@ impl ChessMove {
             origin,
             target,
             meta_data: special,
+        }
+    }
+    fn valid_new(board: &mut Board, piece: Piece, origin: Square, target: Square, special: MoveData) -> Result<ChessMove, MoveError> {
+        let chess_move = ChessMove::new(piece, origin, target, special);
+        if chess_move.leaves_king_in_check(board) {
+            Err(LeavesKingInCheck)
+        } else {
+            Ok(chess_move)
         }
     }
     // pub fn from_long_algebraic(long_algebraic_notation: String) -> Result<ChessMove, None> {
@@ -280,7 +290,140 @@ impl ChessMove {
 
         Ok(())
     }
-    
+
+    pub fn validate_move(&mut self, board: &Board) -> Result<(), MoveError> {
+        let status = self.validate_movement(board);
+        if status.is_err() {
+            return status;
+        }
+
+        if self.leaves_king_in_check(&mut board.clone()){
+            return Err(LeavesKingInCheck);
+        }
+
+        self.validate_meta_data(board)
+    }
+    fn validate_movement(&mut self, board: &Board) -> Result<(),MoveError> {
+        if self.meta_data.is_promotion() {
+            return self.validate_promotion(board);
+        }
+        match self.piece {
+            Piece::WhitePawn | Piece::BlackPawn => self.validate_pawn_move(board),
+            Piece::WhiteRook | Piece::BlackRook => self.validate_rook_move(board),
+            Piece::WhiteKnight | Piece::BlackKnight => self.validate_knight_move(board),
+            Piece::WhiteBishop | Piece::BlackBishop => self.validate_bishop_move(board),
+            Piece::WhiteQueen | Piece::BlackQueen => self.validate_queen_move(board),
+            Piece::WhiteKing | Piece::BlackKing => self.validate_king_move(board)
+        }
+    }
+    fn validate_meta_data(&mut self, board: &Board) -> Result<(), MoveError> {
+        todo!("Implement meta_data validation")
+    }
+
+    fn validate_pawn_move(&mut self, board: &Board) -> Result<(),MoveError> {
+        // Yes I'm using 255 and 254 in place of -1 and -2,
+        // but Square/Square.row()/Square.col() are all u8s anyway
+        let active_player = self.piece.get_color();
+        let pawn_direction = active_player.get_pawn_direction();
+        let origin = self.origin;
+        let target = self.target;
+
+        // Row check
+        match origin.get_row() - target.get_row() {
+            1 | 2 if active_player == Color::Black => { // White only
+                Err(IllegalMove) //Pawn moving wrong way
+            }
+            255 | 254 if active_player == Color::White => { // Black only
+                Err(IllegalMove) //Pawn moving wrong way
+            }
+            254 | 2 => { // White/Black double move
+                if origin.get_col() != target.get_col() { return Err(IllegalMove) }
+                if origin.get_row() != active_player.get_pawn_starting_row() { return Err(IllegalMove) }
+
+                if board.is_piece_at(target) {return Err(IllegalMove) }
+                if board.is_piece_at(origin + pawn_direction) { Err(ObstructedMove) }
+                else { Ok(()) }
+            }
+            // Column check
+            1 | 255 => match origin.get_col() - target.get_col() {
+                // Same column, forward only + no capture
+                0 => {
+                    if board.is_piece_at(target) {Err(ObstructedMove) }
+                    else { Ok(()) }
+                }
+                // Diagonal, must capture / en passant
+                255 | 1 => {
+                    match board.get_piece_at(target) {
+                        // Capture
+                        Some(piece) => {
+                            if piece.get_color() == active_player { Err(IllegalMove) }
+                            else { Ok(()) }
+                        }
+                        // en passant
+                        None => match board.en_passant_square {
+                            None => {Err(IllegalMove) }
+                            Some(square) => {
+                                if square != target { Err(IllegalMove) }
+                                else { Ok(()) }
+                            }
+                        }
+                    }
+                }
+                // Column failure
+                _ => Err(IllegalMove)
+            }
+            // Row failure
+            _ => Err(IllegalMove)
+        }
+    }
+    fn validate_rook_move(&mut self, board: &Board) -> Result<(), MoveError> {
+        let col_delta = self.target.get_col() - self.origin.get_col();
+        let row_delta = self.target.get_row() - self.origin.get_row();
+
+        if col_delta != 0 && row_delta != 0 {
+            return Err(IllegalMove);
+        } else if col_delta == 0 && row_delta == 0 {
+            return Err(IllegalMove);
+        }
+
+        let move_bitboard = if col_delta == 0 {
+            board.sees_down_file(self.origin, self.origin < self.target)
+        } else {
+            board.sees_down_rank(self.origin, self.origin < self.target)
+        };
+
+        if move_bitboard & (1<<self.target) { return Err(ObstructedMove); }
+
+        match board.get_piece_at(self.target) {
+            Some(target_piece) => {
+                if target_piece.get_color() == self.piece.get_color() {
+                    self.meta_data = MoveData::Capture;
+                    Ok(())
+                } else {
+                    Err(ObstructedMove)
+                }
+            }
+            None => {
+                Ok(())
+            }
+        }
+    }
+    fn validate_knight_move(&mut self, board: &Board) -> Result<(), MoveError> {
+        todo!("Implement me please!")
+    }
+    fn validate_bishop_move(&mut self, board: &Board) -> Result<(), MoveError> {
+        todo!("Implement me please!")
+    }
+    fn validate_queen_move(&mut self, board: &Board) -> Result<(), MoveError> {
+        todo!("Implement me please!")
+    }
+    fn validate_king_move(&mut self, board: &Board) -> Result<(), MoveError> {
+        todo!("Implement me please!")
+    }
+    fn validate_promotion(&mut self, board: &Board) -> Result<(), MoveError> {
+        todo!("Implement me please!")
+    }
+
     pub fn leaves_king_in_check(&self, board: &mut Board) -> bool {
         let (
             removed_piece,
@@ -293,6 +436,7 @@ impl ChessMove {
 
         king_in_check
     }
+
     pub fn get_valid_moves(board: &mut Board) -> Vec<ChessMove> {
         let possible_moves: Vec<ChessMove> = Self::get_possible_moves(board);
         Self::validate_moves(possible_moves, board)

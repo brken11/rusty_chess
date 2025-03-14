@@ -1,6 +1,7 @@
 mod board;
 mod chess_moves;
 mod rules;
+mod move_parser;
 
 use crate::board::pieces::Piece;
 use board::Board;

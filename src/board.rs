@@ -598,7 +598,7 @@ impl Board {
             let ascending = i== 1;
             let mut distance = 1;
             for s in square.get_row_squares(ascending) {
-                let threatening_square = captures_straight(self, distance, square, opponent);
+                let threatening_square = captures_straight(self, distance, s, opponent);
                 match threatening_square {
                     Some(true) => { return true; }
                     Some(false) => { break; }
@@ -607,7 +607,7 @@ impl Board {
             }
             distance = 1;
             for s in square.get_col_squares(ascending) {
-                let threatening_square = captures_straight(self, distance, square, opponent);
+                let threatening_square = captures_straight(self, distance, s, opponent);
                 match threatening_square {
                     Some(true) => { return true; }
                     Some(false) => { break; }

@@ -1,6 +1,6 @@
 use crate::board::Square;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
     White,
     Black,
