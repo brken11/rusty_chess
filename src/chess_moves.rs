@@ -4,10 +4,10 @@ use crate::rules;
 use rules::MoveResult;
 use rules::CastleType;
 
-use crate::board::{pieces, Square, SquareExt, Board};
+use crate::board::{pieces, Square, SquareExt, Board, CastlingRightsExt};
 use pieces::Piece;
 use crate::board::pieces::Color;
-use crate::chess_moves::MoveError::{IllegalMove, LeavesKingInCheck, ObstructedMove};
+use crate::chess_moves::MoveError::{CastleNotPermmited, IllegalMove, KingCannotSeeRook, LeavesKingInCheck, ObstructedMove};
 use crate::rules::MoveType;
 
 #[repr(u8)]
@@ -61,6 +61,8 @@ pub enum MoveError{
     DisambiguousMove,
     IllegalMove,
     ParsingError,
+    CastleNotPermmited,
+    KingCannotSeeRook,
 }
 
 #[derive(Debug,)]
@@ -80,13 +82,32 @@ impl ChessMove {
             meta_data: special,
         }
     }
-    fn valid_new(board: &mut Board, piece: Piece, origin: Square, target: Square, special: MoveData) -> Result<ChessMove, MoveError> {
-        let chess_move = ChessMove::new(piece, origin, target, special);
-        if chess_move.leaves_king_in_check(board) {
-            Err(LeavesKingInCheck)
-        } else {
-            Ok(chess_move)
-        }
+    /// Constructs and returns a valid move if it is legal on the given board.
+    ///
+    /// This method first verifies that the move follows the movement rules of the given piece.
+    /// It then ensures that the move does not place or leave the player's king in check.
+    ///
+    /// # Parameters
+    /// - `board`: The board to validate the move against. If a move is returned, it is only
+    ///   guaranteed to be valid when applied to the same `Board` instance.
+    /// - `piece`: The piece that will be moved. Special cases:
+    ///   - **Castling**: Move the king two squares toward the rook, and a valid `Castle` move will be returned.
+    ///   - **Pawn promotion**: Set `piece` to the desired promotion target and enable `is_promotion`.
+    /// - `origin`: The starting square of the piece.
+    /// - `target`: The destination square of the piece.
+    /// - `is_promotion`: A flag indicating that a pawn will promote into the specified `piece`.
+    ///
+    /// # Returns
+    /// - `Ok(ChessMove)`: A valid move if all rules are satisfied.
+    /// - `Err(MoveError)`: An error if the move is illegal.
+    ///
+    fn valid_new(board: &mut Board, piece: Piece, origin: Square, target: Square, is_promotion: bool) -> Result<ChessMove, MoveError> {
+        let move_data = if is_promotion {MoveData::Promotion} else {MoveData::Normal};
+        // Initiaizes with normalized `MoveData` and validate_move() will fix it
+        let mut chess_move = ChessMove::new(piece, origin, target, move_data);
+
+        chess_move.validate_move(board)?;
+        Ok(chess_move)
     }
     // pub fn from_long_algebraic(long_algebraic_notation: String) -> Result<ChessMove, None> {
     //
@@ -291,35 +312,91 @@ impl ChessMove {
         Ok(())
     }
 
-    pub fn validate_move(&mut self, board: &Board) -> Result<(), MoveError> {
+    /// Validates the legality of the current move on the given board.
+    ///
+    /// This function checks movement rules, whether the move leaves the king in check,
+    /// and additional metadata constraints.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the current game board.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(MoveError)` if the move is illegal.
+    pub fn validate_move(&mut self, board: &mut Board) -> Result<(), MoveError> {
         let status = self.validate_movement(board);
         if status.is_err() {
             return status;
         }
 
-        if self.leaves_king_in_check(&mut board.clone()){
+        if self.leaves_king_in_check(board){
             return Err(LeavesKingInCheck);
         }
 
         self.validate_meta_data(board)
     }
+    /// Validates whether the movement of the piece follows the correct movement rules.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the board to check move legality.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(MoveError)` if the move is illegal.
     fn validate_movement(&mut self, board: &Board) -> Result<(),MoveError> {
         if self.meta_data.is_promotion() {
             return self.validate_promotion(board);
         }
         match self.piece {
-            Piece::WhitePawn | Piece::BlackPawn => self.validate_pawn_move(board),
-            Piece::WhiteRook | Piece::BlackRook => self.validate_rook_move(board),
-            Piece::WhiteKnight | Piece::BlackKnight => self.validate_knight_move(board),
-            Piece::WhiteBishop | Piece::BlackBishop => self.validate_bishop_move(board),
-            Piece::WhiteQueen | Piece::BlackQueen => self.validate_queen_move(board),
-            Piece::WhiteKing | Piece::BlackKing => self.validate_king_move(board)
+            // Pawn has own validation logic for captures
+            Piece::WhitePawn | Piece::BlackPawn => return self.validate_pawn_move(board),
+            // Validate move rules
+            Piece::WhiteRook | Piece::BlackRook => self.validate_rook_move(board)?,
+            Piece::WhiteKnight | Piece::BlackKnight => self.validate_knight_move()?,
+            Piece::WhiteBishop | Piece::BlackBishop => self.validate_bishop_move(board)?,
+            Piece::WhiteQueen | Piece::BlackQueen => self.validate_queen_move(board)?,
+            Piece::WhiteKing | Piece::BlackKing => self.validate_king_move(board)?
         }
+        // Validate if there is a piece, whether it can be captured
+        self.validate_capturable(board)
+    }
+    /// Checks whether the target square is occupied and if the piece can be captured.
+    ///
+    /// If an enemy piece is present, the move is marked as a capture. If a friendly piece
+    /// is present, the move is obstructed.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the board.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(ObstructedMove)` if the move is blocked by a friendly piece.
+    fn validate_capturable(&mut self, board: &Board) -> Result<(), MoveError> {
+        if let Some(target_color) = board.get_piece_color_at(self.target) {
+            if target_color != self.piece.get_color() {
+                self.meta_data = MoveData::Capture;
+                return Ok(());
+            } else {
+                return Err(ObstructedMove);
+            }
+        }
+        Ok(())
     }
     fn validate_meta_data(&mut self, board: &Board) -> Result<(), MoveError> {
         todo!("Implement meta_data validation")
     }
 
+    /// Validates pawn movement rules, including standard moves, captures, and en passant.
+    ///
+    /// Pawns can move forward one square if unoccupied, capture diagonally, and move two squares
+    /// from their starting rank. This function also handles en passant validation.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the game board.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the pawn move is valid.
+    /// * `Err(MoveError)` if the move is invalid.
     fn validate_pawn_move(&mut self, board: &Board) -> Result<(),MoveError> {
         // Yes I'm using 255 and 254 in place of -1 and -2,
         // but Square/Square.row()/Square.col() are all u8s anyway
@@ -342,7 +419,10 @@ impl ChessMove {
 
                 if board.is_piece_at(target) {return Err(IllegalMove) }
                 if board.is_piece_at(origin + pawn_direction) { Err(ObstructedMove) }
-                else { Ok(()) }
+                else {
+                    self.meta_data = MoveData::EnableEnPassant;
+                    Ok(())
+                }
             }
             // Column check
             1 | 255 => match origin.get_col() - target.get_col() {
@@ -357,14 +437,20 @@ impl ChessMove {
                         // Capture
                         Some(piece) => {
                             if piece.get_color() == active_player { Err(IllegalMove) }
-                            else { Ok(()) }
+                            else {
+                                self.meta_data = MoveData::Capture;
+                                Ok(())
+                            }
                         }
                         // en passant
                         None => match board.en_passant_square {
                             None => {Err(IllegalMove) }
                             Some(square) => {
                                 if square != target { Err(IllegalMove) }
-                                else { Ok(()) }
+                                else {
+                                    self.meta_data = MoveData::EnPassant;
+                                    Ok(())
+                                }
                             }
                         }
                     }
@@ -376,6 +462,14 @@ impl ChessMove {
             _ => Err(IllegalMove)
         }
     }
+    /// Validates rook movement, ensuring it moves in straight lines without obstruction.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the board.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(IllegalMove)` if the move is invalid.
     fn validate_rook_move(&mut self, board: &Board) -> Result<(), MoveError> {
         let col_delta = self.target.get_col() - self.origin.get_col();
         let row_delta = self.target.get_row() - self.origin.get_row();
@@ -386,42 +480,172 @@ impl ChessMove {
             return Err(IllegalMove);
         }
 
-        let move_bitboard = if col_delta == 0 {
-            board.sees_down_file(self.origin, self.origin < self.target)
-        } else {
-            board.sees_down_rank(self.origin, self.origin < self.target)
-        };
-
-        if move_bitboard & (1<<self.target) { return Err(ObstructedMove); }
-
-        match board.get_piece_at(self.target) {
-            Some(target_piece) => {
-                if target_piece.get_color() == self.piece.get_color() {
-                    self.meta_data = MoveData::Capture;
-                    Ok(())
-                } else {
-                    Err(ObstructedMove)
-                }
-            }
-            None => {
-                Ok(())
-            }
+        self.validate_straight_move(board, col_delta == 0)
+    }
+    /// Validates knight movement, ensuring it follows an L-shape pattern.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(IllegalMove)` if the move is invalid.
+    fn validate_knight_move(&mut self) -> Result<(), MoveError> {
+        let col_diff = self.origin.col_diff(self.target);
+        let row_diff = self.origin.row_diff(self.target);
+        match col_diff {
+            1 => match row_diff {
+                2 => Ok(()),
+                _ => Err(IllegalMove)
+            },
+            2 => match row_diff {
+                1 => Ok(()),
+                _ => Err(IllegalMove)
+            },
+            _ => Err(IllegalMove)
         }
     }
-    fn validate_knight_move(&mut self, board: &Board) -> Result<(), MoveError> {
-        todo!("Implement me please!")
-    }
+    /// Validates bishop movement, ensuring diagonal movement without obstruction.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the board.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(IllegalMove)` if the move is invalid.
     fn validate_bishop_move(&mut self, board: &Board) -> Result<(), MoveError> {
-        todo!("Implement me please!")
+        let row_delta = self.origin.row_diff(self.target);
+        let col_delta = self.origin.col_diff(self.target);
+
+        if row_delta != col_delta || row_delta == 0 {
+            return Err(IllegalMove);
+        }
+
+        self.validate_diagonal_move(board)
     }
+    /// Validates queen movement, allowing both straight and diagonal movement.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the board.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(IllegalMove)` if the move is invalid.
     fn validate_queen_move(&mut self, board: &Board) -> Result<(), MoveError> {
-        todo!("Implement me please!")
+        let row_delta = self.origin.row_diff(self.target);
+        let col_delta = self.origin.col_diff(self.target);
+
+        if row_delta == col_delta { //Diagonal
+            if row_delta == 0 { return Err(IllegalMove); } //Didn't move
+
+            self.validate_diagonal_move(board)
+        } else if row_delta != 0  && col_delta != 0 { //One must be zero to be a straight move
+            Err(IllegalMove)
+        } else { //Is straight
+            self.validate_straight_move(board, col_delta == 0)
+        }
     }
+    /// Validates king movement, including castling logic.
+    ///
+    /// The king can move one square in any direction or perform castling if the conditions are met.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the board.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(MoveError)` if the move is illegal.
     fn validate_king_move(&mut self, board: &Board) -> Result<(), MoveError> {
-        todo!("Implement me please!")
+        let col_delta = self.origin.col_diff(self.target);
+        match col_delta{
+            1 => if self.origin.row_diff(self.target) > 1 {Err(IllegalMove) } else {Ok(())},
+            0 => if self.origin.row_diff(self.target) != 1 {Err(IllegalMove) } else {Ok(())}
+            2 => {//Castling logic
+                if self.origin.get_row() != self.target.get_row() {return Err(IllegalMove);}
+
+                let mut rook_square: Square;
+                let rook: Piece;
+                let kingside_castle;
+                let kings_color = self.piece.get_color();
+                match kings_color {
+                    Color::White => {
+                        rook = Piece::WhiteRook;
+                        rook_square = Square::MAX - Square::COLS;
+                    }
+                    Color::Black => {
+                        rook = Piece::BlackRook;
+                        rook_square = Square::MIN;
+                    }
+                }
+                match self.origin < self.target{
+                    true => {
+                        kingside_castle = true;
+                        rook_square += Square::COLS - 1;
+                    }
+                    false => {
+                        kingside_castle = false;
+                    }
+                }
+
+                if board.castling_rights.can_castle(kings_color, kingside_castle) == false {
+                    return Err(CastleNotPermmited);
+                }
+
+                if board.sees_down_rank(self.origin, true) & (1<< rook_square) != 0 {
+                    return Err(KingCannotSeeRook);
+                }
+                if board.get_bitboard(rook) & (1<< rook_square) != 0 {
+                    return Err(KingCannotSeeRook);
+                }
+
+                self.meta_data = MoveData::Castling;
+                Ok(())
+            }
+            _ => Err(IllegalMove)
+        }
     }
     fn validate_promotion(&mut self, board: &Board) -> Result<(), MoveError> {
         todo!("Implement me please!")
+    }
+    /// Validates diagonal movement for bishops and queens.
+    ///
+    /// Ensures there are no obstructions in the diagonal path.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the board.
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(ObstructedMove)` if the move is invalid.
+    #[inline]
+    fn validate_diagonal_move(&mut self, board: &Board) -> Result<(), MoveError> {
+        let row_delta = self.target.get_row() - self.origin.get_row();
+        let col_delta = self.target.get_col() - self.origin.get_col();
+        if board.sees_down_diagonal(self.origin, row_delta < Square::ROWS, col_delta < Square::COLS)  != 0 {
+            Err(ObstructedMove)
+        } else {
+            Ok(())
+        }
+    }
+    /// Validates straight-line movement for rooks and queens.
+    ///
+    /// Ensures there are no obstructions along the file or rank.
+    ///
+    /// # Arguments
+    /// * `board` - A reference to the board.
+    /// * `down_file` - A boolean indicating if movement is along a file (true) or rank (false).
+    ///
+    /// # Returns
+    /// * `Ok(())` if the move is valid.
+    /// * `Err(ObstructedMove)` if the move is invalid.
+    #[inline]
+    fn validate_straight_move(&mut self, board: &Board, down_file: bool) -> Result<(), MoveError> {
+        let move_bitboard = match down_file {
+            true => board.sees_down_file(self.origin, self.origin < self.target),
+            false => board.sees_down_rank(self.origin, self.origin < self.target)
+        };
+        if move_bitboard & (1<<self.target) != 0 {
+            Err(ObstructedMove)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn leaves_king_in_check(&self, board: &mut Board) -> bool {
@@ -720,25 +944,25 @@ impl ChessMove {
                  * 1, so +2/-2 describes the kings movement in a Castle to a T.
                  */
                 Color::White => {
-                    if board.castling_rights.white_king_side {
+                    if board.castling_rights.can_castle_white_king_side(){
                         if board.sees_down_rank(origin_square, true) & (1<<63) == 1<<63{
                             moves.push(ChessMove::new(king, origin_square, origin_square + 2, MoveData::Castling));
                         }
                     }
-                    if board.castling_rights.white_queen_side {
-                        if board.sees_down_rank(origin_square, true) & (1<<56) == 1<<56{
+                    if board.castling_rights.can_castle_white_queen_side() {
+                        if board.sees_down_rank(origin_square, false) & (1<<56) == 1<<56{
                             moves.push(ChessMove::new(king, origin_square, origin_square - 2, MoveData::Castling));
                         }
                     }
                 },
                 Color::Black => {
-                    if board.castling_rights.black_king_side {
+                    if board.castling_rights.can_castle_black_king_side() {
                         if board.sees_down_rank(origin_square, true) & (1<<7) == 1<<7{
                             moves.push(ChessMove::new(king, origin_square, origin_square + 2, MoveData::Castling));
                         }
                     }
-                    if board.castling_rights.black_queen_side {
-                        if board.sees_down_rank(origin_square, true) & (1<<0) == 1<<0{
+                    if board.castling_rights.can_castle_black_queen_side() {
+                        if board.sees_down_rank(origin_square, false) & (1<<0) == 1<<0{
                             moves.push(ChessMove::new(king, origin_square, origin_square - 2, MoveData::Castling));
                         }
                     }

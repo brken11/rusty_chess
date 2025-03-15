@@ -18,16 +18,76 @@ pub enum BoardError {
 }
 
 /// Contains castling rights for both white and black.
-pub struct CastlingRights {
-    /// White can castle king-side.
-    pub white_king_side: bool,
-    /// White can castle queen-side.
-    pub white_queen_side: bool,
-    /// Black can castle king-side.
-    pub black_king_side: bool,
-    /// Black can castle queen-side.
-    pub black_queen_side: bool,
+pub type CastlingRights = u8;
+pub trait CastlingRightsExt{
+    const NONE_CAN_CASTLE: CastlingRights;
+    const ALL_CAN_CASTLE: CastlingRights;
+    const KINGSIDE_MASK: CastlingRights;
+    const QUEENSIDE_MASK: CastlingRights;
+    const WHITE_KING_MASK: CastlingRights;
+    const BLACK_KING_MASK: CastlingRights;
+    fn can_castle(self, color: Color, kingside: bool) -> bool;
+    fn can_castle_white_king_side(self) -> bool;
+    fn can_castle_white_queen_side(self) -> bool;
+    fn can_castle_black_king_side(self) -> bool;
+    fn can_castle_black_queen_side(self) -> bool;
+    fn king_moved(&mut self, king_color: Color);
+    fn rook_moved(&mut self, rook_color: Color, kingside: bool);
 }
+impl CastlingRightsExt for CastlingRights {
+    const NONE_CAN_CASTLE: CastlingRights = 0;
+    const ALL_CAN_CASTLE: CastlingRights = 0b0000_1111;
+    const KINGSIDE_MASK: CastlingRights = 0b0000_0101;
+    const QUEENSIDE_MASK: CastlingRights = 0b0000_1010;
+    const WHITE_KING_MASK: CastlingRights = 0b0000_0011;
+    const BLACK_KING_MASK: CastlingRights = 0b0000_1100;
+    #[inline]
+    fn can_castle(self, color: Color, kingside: bool) -> bool {
+        let mask = match kingside{
+            true => CastlingRights::KINGSIDE_MASK,
+            false => CastlingRights::QUEENSIDE_MASK,
+        };
+        match color{
+            Color::White => (self & mask & CastlingRights::WHITE_KING_MASK) > 0,
+            Color::Black => (self & mask & CastlingRights::BLACK_KING_MASK) > 0
+        }
+    }
+    #[inline]
+    fn can_castle_white_king_side(self) -> bool {
+        self & Self::WHITE_KING_MASK & Self::KINGSIDE_MASK > 0
+    }
+    #[inline]
+    fn can_castle_white_queen_side(self) -> bool {
+        self & Self::WHITE_KING_MASK & Self::QUEENSIDE_MASK > 0
+    }
+    #[inline]
+    fn can_castle_black_king_side(self) -> bool {
+        self & Self::BLACK_KING_MASK & Self::KINGSIDE_MASK > 0
+    }
+    #[inline]
+    fn can_castle_black_queen_side(self) -> bool {
+        self & Self::BLACK_KING_MASK & Self::QUEENSIDE_MASK > 0
+    }
+    #[inline]
+    fn king_moved(&mut self, king_color: Color){
+        match king_color{
+            Color::White => *self &= ! CastlingRights::WHITE_KING_MASK,
+            Color::Black => *self &= ! CastlingRights::BLACK_KING_MASK
+        };
+    }
+    #[inline]
+    fn rook_moved(&mut self, rook_color: Color, kingside: bool){
+        let mask = match kingside{
+            true => CastlingRights::KINGSIDE_MASK,
+            false => CastlingRights::QUEENSIDE_MASK,
+        };
+        match rook_color{
+            Color::White => *self &= ! (mask & CastlingRights::WHITE_KING_MASK),
+            Color::Black => *self &= ! (mask & CastlingRights::BLACK_KING_MASK)
+        }
+    }
+}
+
 
 /// A bitboard is used to represent piece positions using a 64-bit number.
 pub type Bitboard = u64;
@@ -37,6 +97,12 @@ pub type Square = u8;
 pub trait SquareExt {
     /// Array of square labels, from "a8" to "h1".
     const SQUARES: [&'static str; 64];
+    /// Size of Square bounds
+    const MAX: Square;
+    /// Number of Rows
+    const ROWS: u8;
+    /// Number of Columns
+    const COLS: u8;
     /// Returns the row (0-based) for the square.
     fn get_row(&self) -> u8;
     /// Returns an iterator over rows relative to this square.
@@ -64,6 +130,10 @@ pub trait SquareExt {
     fn new(row : u8, col : u8) -> Square;
     /// Creates a new square from the given row and column if they are valid, otherwise returns `None`.
     fn valid_new(row : u8, col : u8) -> Option<Square>;
+    /// Returns the absolute difference is rows between `Square`s
+    fn row_diff(&self, other_square: Square) -> u8;
+    /// Returns the absolute difference in columns between `Square`s
+    fn col_diff(&self, other_square: Square) -> u8;
     /// Returns an iterator over the file letters.
     fn iter_files() -> impl Iterator<Item = char>;
     /// Returns an iterator over the rank numbers.
@@ -76,6 +146,9 @@ pub trait SquareExt {
     fn to_square_string(&self) -> String;
 }
 impl SquareExt for Square {
+    const ROWS: u8 = 8;
+    const COLS: u8 = 8;
+    const MAX: u8 = Square::ROWS * Square::COLS;
     const SQUARES: [&'static str; 64] = [
         "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
         "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
@@ -87,37 +160,37 @@ impl SquareExt for Square {
         "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
     ];
     fn get_row(&self) -> u8 {
-        self / 8
+        self / Square::ROWS
     }
     fn get_rows(&self, ascending : bool) -> Box<dyn Iterator<Item=u8>> {
         if ascending {
-            Box::new(self.get_row() + 1..8)
+            Box::new(self.get_row() + 1..Self::ROWS)
         } else{
             Box::new((0..self.get_row()).rev())
         }
     }
     fn get_row_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {
         if ascending {
-            Either::Left((self+8..64).step_by(8))
+            Either::Left((self+Square::COLS..Square::MAX).step_by(Square::COLS as usize))
         } else {
-            Either::Right((self.get_col()..*self).step_by(8).rev())
+            Either::Right((self.get_col()..*self).step_by(Square::COLS as usize).rev())
         }
     }
     fn get_col(&self) -> u8 {
-        self % 8
+        self % Square::COLS
     }
     fn get_cols(&self, ascending : bool) -> Box<dyn Iterator<Item=u8>> {
         if ascending {
-            Box::new(self.get_col() + 1..8)
+            Box::new(self.get_col() + 1..Square::ROWS)
         } else {
             Box::new((0..self.get_col()).rev())
         }
     }
     fn get_col_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {
         if ascending {
-            Either::Left(self+1..(self+8-self%8))
+            Either::Left(self+1..(self+Square::COLS-self%Square::COLS))
         } else {
-            Either::Right((self-self%8..*self).rev())
+            Either::Right((self-self%Square::COLS..*self).rev())
         }
     }
     fn get_pos_pair(&self) -> (u8, u8) {
@@ -127,20 +200,38 @@ impl SquareExt for Square {
         *self as usize
     }
     fn get_file(&self) -> char {
-        match self % 8 {
+        match self % Square::COLS {
              0 => 'a', 1 => 'b', 2 => 'c', 3 => 'd', 4 => 'e', 5 => 'f', 6 => 'g', 7 => 'h',
             _ => panic!("Invalid file index"),
         }
     }
     fn get_rank(&self) -> u8 {
-         8 - self / 8
+        Square::ROWS - self / Square::ROWS
     }
     fn new(row : u8, col : u8) -> Square {
-        row * 8 + col
+        row * Square::COLS + col
     }
     fn valid_new(row : u8, col : u8) -> Option<Square> {
-        if row> 7 || col > 7 {return None} else {Some(Square::new(row, col))}
+        if row>= Square::ROWS || col >= Square::COLS {None} else {Some(Square::new(row, col))}
     }
+
+    fn row_diff(&self, other_square: Square) -> u8 {
+        let self_minus_other = self.get_row() - other_square.get_row();
+        if self_minus_other < Square::ROWS {
+            self_minus_other
+        } else {
+            other_square.get_row() - self.get_row()
+        }
+    }
+    fn col_diff(&self, other_square: Square) -> u8 {
+        let diff = self.get_col() - other_square.get_col();
+        if diff < 64 {
+            diff
+        } else {
+            0 - diff
+        }
+    }
+
     fn iter_files() -> impl Iterator<Item = char> {
         (0..8).map(|i| i as u8).map(|i| i.get_file())
     }
@@ -186,12 +277,7 @@ impl Board {
     /// ```
     pub fn std_new() -> Board {
         Board{
-            castling_rights : CastlingRights{
-                white_king_side : true,
-                white_queen_side : true,
-                black_king_side : true,
-                black_queen_side : true,
-            },
+            castling_rights : CastlingRights::ALL_CAN_CASTLE,
             en_passant_square : None,
             half_move_clock : 0,
             full_move_number : 1,
@@ -215,12 +301,7 @@ impl Board {
     /// A `Board` with no pieces, no castling rights, and white as the active player.
     pub fn empty_new() -> Board {
         Board{
-            castling_rights : CastlingRights {
-                white_king_side: false,
-                white_queen_side: false,
-                black_king_side: false,
-                black_queen_side: false,
-            },
+            castling_rights : CastlingRights::NONE_CAN_CASTLE,
             en_passant_square : None,
             half_move_clock : 0,
             full_move_number : 1,
@@ -231,12 +312,7 @@ impl Board {
     }
     pub fn clone(&self) -> Board {
         Board{
-            castling_rights : CastlingRights{
-                white_king_side : self.castling_rights.white_king_side,
-                white_queen_side : self.castling_rights.white_queen_side,
-                black_king_side : self.castling_rights.black_king_side,
-                black_queen_side : self.castling_rights.black_queen_side
-            },
+            castling_rights : self.castling_rights,
             en_passant_square : self.en_passant_square,
             half_move_clock : self.half_move_clock,
             full_move_number : self.full_move_number,
@@ -294,6 +370,17 @@ impl Board {
         for piece in pieces::Piece::iter() {
             if self.data[piece as usize] & (1 << square) != 0 {
                 return Some(piece);
+            }
+        }
+        None
+    }
+    pub fn get_piece_color_at(&self, square: Square) -> Option<Color> {
+        if self.piece_locations & (1 << square) == 0 {
+            return None
+        }
+        for piece in Piece::iter() {
+            if self.data[piece as usize] & (1 << square) != 0 {
+                return Some(piece.get_color());
             }
         }
         None

@@ -1,25 +1,24 @@
-use crate::board::Square;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
-    White,
-    Black,
+    White = 0,
+    Black = 1,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Piece {
-    WhitePawn,
-    BlackPawn,
-    WhiteRook,
-    BlackRook,
-    WhiteKnight,
-    BlackKnight,
-    WhiteBishop,
-    BlackBishop,
-    WhiteQueen,
-    BlackQueen,
-    WhiteKing,
-    BlackKing,
+    WhitePawn = 0,
+    BlackPawn = 1,
+    WhiteRook = 2,
+    BlackRook = 3,
+    WhiteKnight = 4,
+    BlackKnight = 5,
+    WhiteBishop = 6,
+    BlackBishop = 7,
+    WhiteQueen = 8,
+    BlackQueen = 9,
+    WhiteKing = 10,
+    BlackKing = 11,
 }
 
 impl Piece {
@@ -30,6 +29,14 @@ impl Piece {
         Piece::WhiteBishop, Piece::BlackBishop,
         Piece::WhiteQueen, Piece::BlackQueen,
         Piece::WhiteKing, Piece::BlackKing,
+    ];
+    const PIECES_WITH_COLOR: [(Piece,Color); 12] = [
+        (Piece::WhitePawn, Color::White), (Piece::BlackPawn, Color::Black),
+        (Piece::WhiteRook, Color::White), (Piece::BlackRook, Color::Black),
+        (Piece::WhiteKnight, Color::White),(Piece::BlackKnight, Color::Black),
+        (Piece::WhiteBishop, Color::White), (Piece::BlackBishop, Color::Black),
+        (Piece::WhiteQueen, Color::White), (Piece::BlackQueen, Color::Black),
+        (Piece::WhiteKing, Color::White), (Piece::BlackKing, Color::Black),
     ];
     const WHITE_PIECES: [Piece; 6] = [
         Piece::WhitePawn,
@@ -49,6 +56,9 @@ impl Piece {
     ];
     pub fn iter() -> impl Iterator<Item=Piece> {
         Piece::PIECES.iter().copied()
+    }
+    pub fn iter_with_color() -> impl Iterator<Item=(Piece, Color)> {
+        Piece::PIECES_WITH_COLOR.iter().copied()
     }
     pub fn iter_white_pieces() -> impl Iterator<Item=Piece> {
         Piece::WHITE_PIECES.iter().copied()
