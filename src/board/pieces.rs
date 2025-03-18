@@ -75,8 +75,16 @@ impl Piece {
 
     pub fn get_color(&self) -> Color {
         match self {
-            Piece::WhitePawn | Piece::WhiteRook | Piece::WhiteKnight | Piece::WhiteBishop | Piece::WhiteQueen | Piece::WhiteKing => Color::White,
-            Piece::BlackPawn | Piece::BlackRook | Piece::BlackKnight | Piece::BlackBishop | Piece::BlackQueen | Piece::BlackKing => Color::Black,
+            Piece::WhitePawn | Piece::WhiteRook | Piece::WhiteKnight | Piece::WhiteBishop | Piece::WhiteQueen | Piece::WhiteKing
+                => Color::White,
+            Piece::BlackPawn | Piece::BlackRook | Piece::BlackKnight | Piece::BlackBishop | Piece::BlackQueen | Piece::BlackKing
+                => Color::Black
+        }
+    }
+    pub fn get_opponent_color(&self) -> Color {
+        match self {
+            Piece::WhitePawn | Piece::WhiteRook | Piece::WhiteKnight | Piece::WhiteBishop | Piece::WhiteQueen | Piece::WhiteKing => Color::Black,
+            Piece::BlackPawn | Piece::BlackRook | Piece::BlackKnight | Piece::BlackBishop | Piece::BlackQueen | Piece::BlackKing => Color::White
         }
     }
 
@@ -114,6 +122,17 @@ impl Piece {
         match self {
             Piece::WhiteKing | Piece::BlackKing => true,
             _ => false,
+        }
+    }
+
+    /// A method that returns whether the given piece can be promoted *into* or not.
+    ///
+    /// # Returns
+    /// * `bool` Whether the given piece is a valid promotion
+    pub fn is_promotion_candidate(&self) -> bool {
+        match self {
+            Piece::WhitePawn | Piece::BlackPawn | Piece::WhiteKing | Piece::BlackKing => false,
+            _ => true,
         }
     }
 

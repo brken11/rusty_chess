@@ -7,6 +7,7 @@ use crate::board::pieces::Piece;
 use board::Board;
 use crate::board::pieces::Color;
 use crate::chess_moves::ChessMove;
+use crate::move_parser::chess_notation_parser;
 
 fn main() {
     let mut b = Board::std_new();
@@ -32,8 +33,12 @@ fn main() {
     e.set_bitboard(Piece::WhiteQueen, 0x00000000004000000);
     e.set_bitboard(Piece::WhiteKing, 0x0100000000000000);
     println!("{}", e.to_string());
-    let possible_moves: Vec<ChessMove> = ChessMove::get_valid_moves(&mut e);
+    let possible_moves: Vec<ChessMove> = ChessMove::get_valid_moves(&mut b);
     for m in possible_moves {
         println!("{}", m.debug_string());
+    }
+
+    if let Some(c)= move_parser::chess_notation_parser::normalize_piece_symbol("👸"){
+        println!("Normalized text {}", c.to_string());
     }
 }

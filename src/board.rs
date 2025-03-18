@@ -1,13 +1,15 @@
 //! Chess board module.
 //!
 //! This module defines the board, castling rights, bitboards, and extended square functionality.
-//! It provides methods to query and update board state, move pieces, and render the board.
+//! It provides methods to query and update board state, add/remove pieces, and render the board.
 pub(crate) mod pieces;
+pub mod square;
 
 use std::fmt;
 use pieces::Color;
 use pieces::Piece;
-use itertools::Either;
+pub(crate) use square::Square;
+pub(crate) use square::SquareExt;
 
 /// Errors that may occur when performing board operations.
 pub enum BoardError {
@@ -91,163 +93,6 @@ impl CastlingRightsExt for CastlingRights {
 
 /// A bitboard is used to represent piece positions using a 64-bit number.
 pub type Bitboard = u64;
-/// A square on the chessboard represented as a value between 0 and 63.
-pub type Square = u8;
-/// Provides extended functionality for chess board squares.
-pub trait SquareExt {
-    /// Array of square labels, from "a8" to "h1".
-    const SQUARES: [&'static str; 64];
-    /// Size of Square bounds
-    const MAX: Square;
-    /// Number of Rows
-    const ROWS: u8;
-    /// Number of Columns
-    const COLS: u8;
-    /// Returns the row (0-based) for the square.
-    fn get_row(&self) -> u8;
-    /// Returns an iterator over rows relative to this square.
-    ///
-    /// If `ascending` is true, the iterator starts at the next row up to the top (row 7).
-    /// Otherwise, it iterates from row 0 up to the current row (exclusive).
-    fn get_rows(&self, ascending : bool) -> Box<dyn Iterator<Item=u8>>;
-    /// Returns an iterator over squares in the same column (file) in the given direction.
-    fn get_row_squares(&self, ascending : bool) -> impl Iterator<Item = Square>;
-    /// Returns the column (0-based) for the square.
-    fn get_col(&self) -> u8;
-    /// Returns an iterator over columns relative to this square.
-    fn get_cols(&self, ascending : bool) -> Box<dyn Iterator<Item=u8>>;
-    /// Returns an iterator over squares in the same row (rank) in the given direction.
-    fn get_col_squares(&self, ascending : bool) -> impl Iterator<Item = Square>;
-    /// Returns a tuple of (row, column) for the square.
-    fn get_pos_pair(&self) -> (u8, u8);
-    /// Returns the index of the square as a `usize`.
-    fn get_index(&self) -> usize;
-    /// Returns the file (column letter, e.g., 'a' through 'h') for the square.
-    fn get_file(&self) -> char;
-    /// Returns the rank (1-based, e.g., 1 through 8) for the square.
-    fn get_rank(&self) -> u8;
-    /// Creates a new square from the given row and column.
-    fn new(row : u8, col : u8) -> Square;
-    /// Creates a new square from the given row and column if they are valid, otherwise returns `None`.
-    fn valid_new(row : u8, col : u8) -> Option<Square>;
-    /// Returns the absolute difference is rows between `Square`s
-    fn row_diff(&self, other_square: Square) -> u8;
-    /// Returns the absolute difference in columns between `Square`s
-    fn col_diff(&self, other_square: Square) -> u8;
-    /// Returns an iterator over the file letters.
-    fn iter_files() -> impl Iterator<Item = char>;
-    /// Returns an iterator over the rank numbers.
-    fn iter_ranks() -> impl Iterator<Item = u8>;
-    /// Returns an iterator over all squares (0 to 63).
-    fn iter_squares() -> impl Iterator<Item = Square>;
-    /// Returns the string slice representation of the square (e.g., "e4").
-    fn to_square_str(&self) -> &str;
-    /// Returns the string representation of the square.
-    fn to_square_string(&self) -> String;
-}
-impl SquareExt for Square {
-    const ROWS: u8 = 8;
-    const COLS: u8 = 8;
-    const MAX: u8 = Square::ROWS * Square::COLS;
-    const SQUARES: [&'static str; 64] = [
-        "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
-        "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
-        "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
-        "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5",
-        "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
-        "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
-        "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
-        "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
-    ];
-    fn get_row(&self) -> u8 {
-        self / Square::ROWS
-    }
-    fn get_rows(&self, ascending : bool) -> Box<dyn Iterator<Item=u8>> {
-        if ascending {
-            Box::new(self.get_row() + 1..Self::ROWS)
-        } else{
-            Box::new((0..self.get_row()).rev())
-        }
-    }
-    fn get_row_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {
-        if ascending {
-            Either::Left((self+Square::COLS..Square::MAX).step_by(Square::COLS as usize))
-        } else {
-            Either::Right((self.get_col()..*self).step_by(Square::COLS as usize).rev())
-        }
-    }
-    fn get_col(&self) -> u8 {
-        self % Square::COLS
-    }
-    fn get_cols(&self, ascending : bool) -> Box<dyn Iterator<Item=u8>> {
-        if ascending {
-            Box::new(self.get_col() + 1..Square::ROWS)
-        } else {
-            Box::new((0..self.get_col()).rev())
-        }
-    }
-    fn get_col_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {
-        if ascending {
-            Either::Left(self+1..(self+Square::COLS-self%Square::COLS))
-        } else {
-            Either::Right((self-self%Square::COLS..*self).rev())
-        }
-    }
-    fn get_pos_pair(&self) -> (u8, u8) {
-        (self.get_row(),self.get_col())
-    }
-    fn get_index(&self) -> usize {
-        *self as usize
-    }
-    fn get_file(&self) -> char {
-        match self % Square::COLS {
-             0 => 'a', 1 => 'b', 2 => 'c', 3 => 'd', 4 => 'e', 5 => 'f', 6 => 'g', 7 => 'h',
-            _ => panic!("Invalid file index"),
-        }
-    }
-    fn get_rank(&self) -> u8 {
-        Square::ROWS - self / Square::ROWS
-    }
-    fn new(row : u8, col : u8) -> Square {
-        row * Square::COLS + col
-    }
-    fn valid_new(row : u8, col : u8) -> Option<Square> {
-        if row>= Square::ROWS || col >= Square::COLS {None} else {Some(Square::new(row, col))}
-    }
-
-    fn row_diff(&self, other_square: Square) -> u8 {
-        let self_minus_other = self.get_row() - other_square.get_row();
-        if self_minus_other < Square::ROWS {
-            self_minus_other
-        } else {
-            other_square.get_row() - self.get_row()
-        }
-    }
-    fn col_diff(&self, other_square: Square) -> u8 {
-        let diff = self.get_col() - other_square.get_col();
-        if diff < 64 {
-            diff
-        } else {
-            0 - diff
-        }
-    }
-
-    fn iter_files() -> impl Iterator<Item = char> {
-        (0..8).map(|i| i as u8).map(|i| i.get_file())
-    }
-    fn iter_ranks() -> impl Iterator<Item = u8> {
-        (0..8).map(|i| i as u8)
-    }
-    fn iter_squares() -> impl Iterator<Item = Square> {
-        (0..64).map(|i| i as u8)
-    }
-    fn to_square_str(&self) -> &str {
-        Self::SQUARES[*self as usize]
-    }
-    fn to_square_string(&self) -> String {
-        format!("{}{}", self.get_file(),self.get_rank())
-    }
-}
 
 /// Represents a chess board with pieces, castling rights, en passant state,
 /// move counters, and the active player.
@@ -367,7 +212,7 @@ impl Board {
         if self.piece_locations & (1 << square) == 0 {
             return None
         }
-        for piece in pieces::Piece::iter() {
+        for piece in Piece::iter() {
             if self.data[piece as usize] & (1 << square) != 0 {
                 return Some(piece);
             }
@@ -394,8 +239,21 @@ impl Board {
     /// # Returns
     ///
     /// `true` if a piece is present, otherwise `false`.
-    pub fn is_piece_at(&self, square: Square) -> bool {
+    pub fn is_square_occupied(&self, square: Square) -> bool {
         self.piece_locations & (1 << square) != 0
+    }
+    /// Checks if piece at a given square
+    ///
+    /// # Arguments
+    ///
+    /// * `square` - The square to query.
+    /// * `piece` - The piece to check.
+    ///
+    /// # Returns
+    ///
+    /// `bool` - if the piece at the square
+    pub fn is_piece_at(&self, square: Square, piece: Piece) -> bool {
+        self.data[piece as usize] & (1 << square) != 0
     }
     /// Retrieves the piece at the specified square if it matches the given color.
     ///
@@ -536,9 +394,10 @@ impl Board {
     /// The character representing the piece, or a space if none exists.
     pub fn get_char_at(&self, square: Square) -> char {
         if let Some(piece) = self.get_piece_at(square) {
-            return piece.to_char();
-        };
-        ' '
+            piece.to_char()
+        } else {
+            ' '
+        }
     }
     /// Retrieves the symbol representation of the piece at the given square.
     ///
@@ -551,9 +410,10 @@ impl Board {
     /// The symbol representing the piece, or '-' if none exists.
     pub fn get_symbol_at(&self, square: Square) -> char {
         if let Some(piece) = self.get_piece_at(square) {
-            return piece.to_symbol();
+            piece.to_symbol()
+        } else {
+            '-'
         }
-        '-'
     }
     /// Renders the board as a formatted string.
     ///
@@ -593,7 +453,10 @@ impl Board {
     /// - `true` if the square is under attack.
     /// - `false` if the square is safe.
     pub fn is_threatened(&self, square: Square) -> bool {
-        let opponent = if let Some(threatened_piece) = self.get_piece_at(square) { threatened_piece.get_color().toggle_color() } else {return false;};
+        let opponent = match self.get_piece_at(square) {
+            Some(piece) => piece.get_opponent_color(),
+            None => return false,
+        };
 
         fn captures_straight(board: &Board, distance: u8, square: Square, opponent: Color) -> Option<bool> {
             if board.piece_locations & (1 << square) == 0 {
@@ -645,40 +508,6 @@ impl Board {
                 Some(false)
             }
         }
-        /*fn capturable_by(
-            board: &Board,
-            distance: u8,
-            square: Square,
-            opponent: Color,
-            diagonal: bool, // true for diagonal, false for straight
-            ascending_row: bool, // needed for pawns
-        ) -> Option<bool> {
-            if board.piece_locations & (1 << square) == 0 {
-                return None;
-            }
-            if let Some(piece) = board.get_colored_piece_at(square, opponent) {
-                match piece {
-                    Piece::WhiteKing | Piece::BlackKing => Some(distance == 1),
-                    Piece::WhiteQueen | Piece::BlackQueen => Some(true),
-                    Piece::WhiteRook | Piece::BlackRook if !diagonal => Some(true),
-                    Piece::WhiteBishop | Piece::BlackBishop if diagonal => Some(true),
-                    Piece::WhitePawn if diagonal && !ascending_row => Some(distance == 1),
-                    Piece::BlackPawn if diagonal && ascending_row => Some(distance == 1),
-                    _ => Some(false),
-                }
-            } else {
-                None
-            }
-        }*/
-        fn is_knight_at(board: &Board, knight_square: Square, knight: Piece) -> bool {
-            if board.piece_locations & (1 << knight_square) == 0 {
-                return false;
-            }
-            match board.get_piece_at(knight_square) {
-                Some(piece) => {knight == piece}
-                _ => false
-            }
-        }
 
         //Check ranks and file
         for i in 0..2 {
@@ -707,11 +536,8 @@ impl Board {
             let ascending_row = i/2 == 0;
             let ascending_col = i%2 == 0;
 
-            let range = square.get_rows(ascending_row)
-                .zip(square.get_cols(ascending_col));
             let mut distance = 1;
-            for s in range {
-                let diagonal_square : Square = Square::new(s.0, s.1);
+            for diagonal_square in square.iter_diagonal(ascending_row, ascending_col) {
                 let threatening_square = captures_diagonally(self, distance, diagonal_square, opponent, ascending_row);
                 match threatening_square {
                     Some(true) => { return true; }
@@ -721,18 +547,11 @@ impl Board {
             }
         }
         //Check knights
-        {
-            let row = square.get_row();
-            let col = square.get_col();
-            let enemy_knight = opponent.get_knight();
-            if let Some(target_square) = Square::valid_new(row - 2, col - 1) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
-            if let Some(target_square) = Square::valid_new(row - 2, col + 1) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
-            if let Some(target_square) = Square::valid_new(row - 1, col - 2) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
-            if let Some(target_square) = Square::valid_new(row - 1, col + 2) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
-            if let Some(target_square) = Square::valid_new(row + 1, col - 2) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
-            if let Some(target_square) = Square::valid_new(row + 1, col + 2) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
-            if let Some(target_square) = Square::valid_new(row + 2, col - 1) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
-            if let Some(target_square) = Square::valid_new(row + 2, col + 1) { if is_knight_at(self, target_square, enemy_knight) { return true; } };
+        let enemy_knight = opponent.get_knight();
+        for knight_square in square.iter_knight_offsets() {
+            if self.is_piece_at(knight_square, enemy_knight) {
+                return true;
+            }
         }
 
         false
@@ -797,12 +616,8 @@ impl Board {
     /// A bitboard representing clear squares along the diagonal.
     pub fn sees_down_diagonal(&self, square:Square, ascending_row: bool, ascending_col: bool) -> Bitboard {
         let mut vision_board : Bitboard = 0;
-        let range = square.get_rows(ascending_row)
-                                    .zip(square.get_cols(ascending_col));
-        for s in range {
-            let diagonal_square : Square = Square::new(s.0, s.1);
+        for diagonal_square in square.iter_diagonal(ascending_row, ascending_col) {
             vision_board |= 1 << diagonal_square;
-            // println!("{}", diagonal_square.to_square_string());
             if self.piece_locations & (1 << diagonal_square) != 0 {
                 break;
             }
@@ -820,16 +635,9 @@ impl Board {
     /// A bitboard representing the knight's move possibilities.
     pub fn sees_like_knight(&self, square:Square) -> Bitboard {
         let mut vision_board : Bitboard = 0;
-        let row = square.get_row();
-        let col = square.get_col();
-        if let Some(s) = Square::valid_new(row - 2, col - 1) {vision_board |= 1 << s;}
-        if let Some(s) = Square::valid_new(row - 2, col + 1) {vision_board |= 1 << s;}
-        if let Some(s) = Square::valid_new(row - 1, col - 2) {vision_board |= 1 << s;}
-        if let Some(s) = Square::valid_new(row - 1, col + 2) {vision_board |= 1 << s;}
-        if let Some(s) = Square::valid_new(row + 1, col - 2) {vision_board |= 1 << s;}
-        if let Some(s) = Square::valid_new(row + 1, col + 2) {vision_board |= 1 << s;}
-        if let Some(s) = Square::valid_new(row + 2, col - 1) {vision_board |= 1 << s;}
-        if let Some(s) = Square::valid_new(row + 2, col + 1) {vision_board |= 1 << s;}
+        for knight_square in square.iter_knight_offsets(){
+            vision_board |= 1 << knight_square;
+        }
         vision_board
     }
 
@@ -911,10 +719,7 @@ impl Board {
     /// - An optional square where a capturable piece is found.
     pub fn clear_n_capture_down_diagonal(&self, square:Square, ascending_row: bool, ascending_col: bool, color: Color) -> (Bitboard, Option<Square>) {
         let mut vision_board : Bitboard = 0;
-        let range = square.get_rows(ascending_row)
-            .zip(square.get_cols(ascending_col));
-        for s in range {
-            let diagonal_square : Square = Square::new(s.0, s.1);
+        for diagonal_square in square.iter_diagonal(ascending_row, ascending_col) {
             // println!("{}", diagonal_square.to_square_string());
             if self.piece_locations & (1 << diagonal_square) != 0 {
                 return match self.get_colored_piece_at(diagonal_square, color) {
@@ -969,10 +774,3 @@ impl fmt::Display for Board {
     }
 }
 
-// If you need to implement display for squares, you can uncomment and complete this:
-//
-// impl fmt::Display for Square {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         self.to_square_str().fmt(f)
-//     }
-// }
