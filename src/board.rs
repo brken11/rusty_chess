@@ -5,9 +5,8 @@
 pub(crate) mod pieces;
 pub mod square;
 
-use std::fmt;
-use pieces::Color;
-use pieces::Piece;
+pub(crate) use pieces::Color;
+pub use pieces::Piece;
 pub(crate) use square::Square;
 pub(crate) use square::SquareExt;
 
@@ -765,11 +764,11 @@ impl Board {
     }
 }
 
-impl fmt::Display for Board {
+impl std::fmt::Display for Board {
     /// Formats the board for display.
     ///
     /// This implementation renders the board using `to_string()`.
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.to_string().fmt(f)
     }
 }

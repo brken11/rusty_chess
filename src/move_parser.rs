@@ -1,5 +1,8 @@
-use crate::board::pieces::Piece;
-use crate::chess_moves::MoveError;
+use crate::board::pieces::{Color, Piece};
+use crate::board::{Square, SquareExt};
+use crate::board::square::{Col, ColExt, Row, RowExt};
+use crate::chess_moves::{ChessMove,MoveError,Disambiguity};
+use crate::rules::{MoveResult, MoveType, CastleType::{KingSide, QueenSide}, CastleType};
 
 pub const PIECE_MAP: &[(&str, char)] = &[
     // Bishop
@@ -31,32 +34,750 @@ pub const PIECE_MAP: &[(&str, char)] = &[
     ("🏰", 'R'), ("🏯", 'R'),
     ("飛", 'R'), ("車", 'R'), ("俥", 'R'), // Shogi & Xiangqi Rooks
 ];
-pub const SORTED_PIECE_MAP: &[(&str, char)] = &[("B", 'B'), ("K", 'K'), ("N", 'N'), ("P", 'P'), ("Q", 'Q'), ("Q̲", 'Q'), ("R", 'R'), ("ᴋ", 'K'), ("ᴎ", 'N'), ("⒝", 'B'), ("⒦", 'K'), ("⒩", 'N'), ("⒫", 'P'), ("⒬", 'Q'), ("⒭", 'R'), ("Ⓚ", 'K'), ("Ⓝ", 'N'), ("Ⓟ", 'P'), ("Ⓠ", 'Q'), ("Ⓡ", 'R'), ("ⓑ", 'B'), ("♔", 'K'), ("♕", 'Q'), ("♖", 'R'), ("♗", 'B'), ("♘", 'N'), ("♙", 'P'), ("♚", 'K'), ("♛", 'Q'), ("♜", 'R'), ("♝", 'B'), ("♞", 'N'), ("♟", 'P'), ("⚜️", 'B'), ("✝️", 'B'), ("㋛", 'Q'), ("㋜", 'R'), ("㋝", 'B'), ("㋞", 'K'), ("俥", 'R'), ("傌", 'N'), ("兵", 'P'), ("卒", 'P'), ("将", 'K'), ("帅", 'K'), ("桂", 'N'), ("歩", 'P'), ("王", 'K'), ("角", 'B'), ("象", 'B'), ("車", 'R'), ("飛", 'R'), ("馬", 'N'), ("🄌", 'Q'), ("🄍", 'R'), ("🄑", 'B'), ("🄚", 'K'), ("🄝", 'N'), ("🄟", 'P'), ("🄺", 'K'), ("🅀", 'Q'), ("🅁", 'R'), ("🅑", 'B'), ("🅚", 'K'), ("🅝", 'N'), ("🅟", 'P'), ("🅺", 'K'), ("🏃", 'P'), ("🏇", 'N'), ("🏯", 'R'), ("🏰", 'R'), ("🐴", 'N'), ("👑", 'K'), ("👑", 'Q'), ("👸", 'Q'), ("🚶", 'P'), ("🤴", 'K'), ("🦄", 'N'), ];
-enum ParseError{
-    IllegalMoveError(MoveError),
-    DisambiguousMoveError,
+pub const SORTED_PIECE_MAP: &[(char, char)] = &[('B', 'B'),('K', 'K'),('N', 'N'),('P', 'P'),('Q', 'Q')/*,("Q̲", 'Q')*/,('R', 'R'),('ᴋ', 'K'),('ᴎ', 'N'),('⒝', 'B'),('⒦', 'K'),('⒩', 'N'),('⒫', 'P'),('⒬', 'Q'),('⒭', 'R'),('Ⓚ', 'K'),('Ⓝ', 'N'),('Ⓟ', 'P'),('Ⓠ', 'Q'),('Ⓡ', 'R'),('ⓑ', 'B'),('♔', 'K'),('♕', 'Q'),('♖', 'R'),('♗', 'B'),('♘', 'N'),('♙', 'P'),('♚', 'K'),('♛', 'Q'),('♜', 'R'),('♝', 'B'),('♞', 'N'),('♟', 'P')/*,("⚜️", 'B')*//*,("✝️", 'B')*/,('㋛', 'Q'),('㋜', 'R'),('㋝', 'B'),('㋞', 'K'),('俥', 'R'),('傌', 'N'),('兵', 'P'),('卒', 'P'),('将', 'K'),('帅', 'K'),('桂', 'N'),('歩', 'P'),('王', 'K'),('角', 'B'),('象', 'B'),('車', 'R'),('飛', 'R'),('馬', 'N'),('🄌', 'Q'),('🄍', 'R'),('🄑', 'B'),('🄚', 'K'),('🄝', 'N'),('🄟', 'P'),('🄺', 'K'),('🅀', 'Q'),('🅁', 'R'),('🅑', 'B'),('🅚', 'K'),('🅝', 'N'),('🅟', 'P'),('🅺', 'K'),('🏃', 'P'),('🏇', 'N'),('🏯', 'R'),('🏰', 'R'),('🐴', 'N'),('👑', 'K'),('👑', 'Q'),('👸', 'Q'),('🚶', 'P'),('🤴', 'K'),('🦄', 'N')];
+#[derive(Debug)]
+pub enum ParseError{
+    MissingPiece,
+    MissingOriginError,
     MissingTargetError,
+    MissingPromotionPiece,
+    InvalidSquare(Square),
+    UnknownCharacter,
+    UnrecognizedCharInMap,
+    TokenizationError,
+    AlgebraicParseModeError(AlgebraicParseStage),
+    DisambiguousMoveError(Disambiguity),
+    IllegalMoveError(MoveError),
+    MalformedCastle,
+    MalformedExpression(Token),
+    Todo,
+}
 
+#[derive(Debug,Eq, PartialEq, Clone, Copy)]
+enum Token {
+    Piece(Piece),       // Pieces 'K', 'Q' etc
+    Rank(Row),          // Ranks '1' through '8'
+    File(Col),          // Files 'a' through 'h'
+    Square(Square),     // 'a1', 'c3', 'h8' etc
+    Capture,            // 'x'
+    Separator,          // '-' and '>'
+    Check,              // '+'
+    Checkmate,          // '#'
+    Stalemate,          // '‡'
+    Promotion(Piece),   // '=N','=Q' etc
+    Castle(CastleType),  // "O-O", "0-0-0" etc
+}
 
+#[derive(Debug,)]
+struct ProtoMove {
+    piece: Option<Piece>,
+    origin: Disambiguity,
+    is_capture: Option<bool>,
+    target: Option<Square>,
+    move_type: MoveType,
+    promotion_piece: Option<Piece>,
+    castle_type: Option<CastleType>,
+    move_result: MoveResult,
+}
+
+#[derive(Debug,PartialEq, Eq, PartialOrd, Ord)]
+enum AlgebraicParseStage{
+    Piece,
+    Disambiguation,
+    Capture,
+    Target,
+    Promotion,
+    MoveResult
 }
 
 
 
 pub(crate) mod chess_notation_parser {
-    use crate::chess_moves::{ChessMove, MoveError};
-    use crate::move_parser::{SORTED_PIECE_MAP, ParseError};
+    use super::*;
 
-    fn from_simplified_chess_notation(string: String) -> Result<ChessMove, ParseError>{
-        todo!("Implement me")
+    pub fn from_simplified_algebraic_notation(string: &str, active_player: Color) -> Result<ChessMove, ParseError>{
+        let mut proto_move: ProtoMove = ProtoMove{
+            piece : None,
+            origin : Disambiguity::None,
+            target : None,
+            is_capture : None,
+            move_type : MoveType::Regular,
+            promotion_piece: None,
+            castle_type: None,
+            move_result : MoveResult::None,
+        };
+        let mut parse_step = AlgebraicParseStage::Piece;
+        let tokens = tokenize_string(string, SORTED_PIECE_MAP, active_player)?;
+        let tokens = pre_process_tokens(&tokens)?;
+
+        let mut token_iter = tokens.into_iter().peekable();
+
+        // Parse piece/castle
+        match token_iter.peek() {
+            None => return Err(ParseError::TokenizationError),
+            Some(Token::Castle(castle_type)) => {
+                proto_move.piece = Some(active_player.get_king());
+                proto_move.move_type = MoveType::Castling;
+                proto_move.castle_type = Some(*castle_type);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::MoveResult;
+            }
+            Some(Token::Piece(piece)) => {
+                proto_move.piece = Some(*piece);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Disambiguation;
+            },
+            Some(Token::File(col)) => {
+                proto_move.piece = Some(active_player.get_pawn());
+                proto_move.origin = Disambiguity::File(*col);
+
+                parse_step = AlgebraicParseStage::Capture;
+            }
+            Some(Token::Square(square)) => {
+                proto_move.piece = Some(active_player.get_pawn());
+                proto_move.target = Some(*square);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Capture;
+            }
+            Some(Token::Capture) => {
+                proto_move.piece = Some(active_player.get_pawn());
+                proto_move.origin = Disambiguity::None;//Redundant, but just to make it clear
+                proto_move.is_capture = Some(true);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Target;
+            }
+            _ => return Err(ParseError::MissingPiece)
+        }
+
+        // Parse origin (if any)
+        if parse_step <= AlgebraicParseStage::Disambiguation {match token_iter.peek() {
+            None => return Err(ParseError::MissingTargetError),
+            Some(Token::File(col)) => {
+                proto_move.origin = Disambiguity::File(*col);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Capture;
+            }
+            Some(Token::Rank(row)) => {
+                proto_move.origin = Disambiguity::Rank(*row);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Capture;
+            }
+            Some(Token::Square(square)) => {
+                // Seems dumb to set this value to target, but if the only square is provided
+                // using **Simplified Algebraic Notation**, it must be assumed it is the target
+                // square and not the origin square, so until a second one shows up,
+                // we assume it's the target.
+                proto_move.target = Some(*square);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Capture;
+            }
+            Some(Token::Separator | Token::Capture) => {
+                proto_move.origin = Disambiguity::None;
+                parse_step = AlgebraicParseStage::Capture;
+            }
+            Some(Token::Piece(_) | Token::Check | Token::Checkmate | Token::Stalemate |
+                Token::Promotion(_) | Token::Castle(_) ) => {
+                return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
+            }
+        }}
+
+        if parse_step <= AlgebraicParseStage::Capture { match token_iter.peek() {
+            None => {
+                return finalize(&mut proto_move);
+            }
+            Some(Token::Capture) => {
+                proto_move.is_capture = Some(true);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Target;
+            }
+            Some(Token::Separator) => {
+                proto_move.is_capture = Some(false);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Target;
+            }
+            Some(Token::Square(_)) => {
+                parse_step = AlgebraicParseStage::Target;
+            }
+            Some(Token::Promotion(_)) => {
+                parse_step = AlgebraicParseStage::Promotion;
+            }
+            Some(Token::Check | Token::Checkmate | Token::Stalemate) => {
+                parse_step = AlgebraicParseStage::MoveResult;
+            }
+            Some(Token::Piece(_) | Token::Rank(_) | Token::File(_) | Token::Castle(_)) => {
+                return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
+            }
+        }}
+
+        if parse_step <= AlgebraicParseStage::Target { match token_iter.peek() {
+            None => {
+                return finalize(&mut proto_move);
+            }
+            Some(Token::Square(square)) => {
+                match proto_move.target {
+                    Some(old_square) => {
+                        proto_move.origin = Disambiguity::Square(old_square);
+                        proto_move.target= Some(*square);
+                    }
+                    None => proto_move.target = Some(*square)
+                }
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Promotion;
+            }
+            Some(Token::Promotion(_)) => {
+                parse_step = AlgebraicParseStage::Promotion;
+            }
+            Some(Token::Check | Token::Checkmate | Token::Stalemate) => {
+                parse_step = AlgebraicParseStage::MoveResult;
+            }
+            Some(Token::Piece(_) | Token::Rank(_) | Token::File(_) | Token::Castle(_) |
+                    Token::Capture | Token::Separator) => {
+                return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
+            }
+        }}
+
+        if parse_step <= AlgebraicParseStage::Promotion { match token_iter.peek() {
+            None => {
+                ///@TODO pass `proto_move` to chess_moves.rs for validation
+                return Err(ParseError::Todo)
+            }
+            Some(Token::Promotion(piece)) => {
+                proto_move.move_type = MoveType::Promotion;
+                proto_move.promotion_piece = Some(*piece);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::MoveResult;
+            }
+            Some(Token::Check | Token::Checkmate | Token::Stalemate) => {
+                parse_step = AlgebraicParseStage::MoveResult;
+            }
+            Some(Token::Piece(_) | Token::Rank(_) | Token::File(_) | Token::Castle(_) |
+                 Token::Capture | Token::Separator | Token::Square(_) ) => {
+                return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
+            }
+        }}
+
+        if parse_step > AlgebraicParseStage::MoveResult {
+            return Err(ParseError::AlgebraicParseModeError(parse_step));
+        }
+
+        // Parse last token
+        match token_iter.next() {
+            None => {},
+            Some(Token::Check) => {
+                proto_move.move_result = MoveResult::Check;
+            }
+            Some(Token::Checkmate) => {
+                proto_move.move_result = MoveResult::Checkmate;
+            }
+            Some(Token::Stalemate) => {
+                proto_move.move_result = MoveResult::Stalemate;
+            }
+            Some(Token::Piece(_) | Token::Rank(_) | Token::File(_) | Token::Castle(_) |
+                 Token::Capture | Token::Separator | Token::Square(_) | Token::Promotion(_)) => {
+                return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
+            }
+        }
+
+        // Token Vec should be emptied
+        if token_iter.peek().is_some() {
+            return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
+        }
+
+        //@TODO Replace with function call that returns chess_move.
+        Err(ParseError::Todo)
     }
 
-    pub fn normalize_piece_symbol(symbol: &str) -> Option<char> {
-        SORTED_PIECE_MAP.binary_search_by_key(&symbol, |&(key, _)| key)
+    pub fn from_long_algebraic_notation(string: &str, active_player: Color) -> Result<ChessMove, ParseError> {
+        let mut proto_move: ProtoMove = ProtoMove{
+            piece : None,
+            origin : Disambiguity::None,
+            target : None,
+            is_capture : None,
+            move_type : MoveType::Regular,
+            promotion_piece: None,
+            castle_type: None,
+            move_result : MoveResult::None,
+        };
+        let mut parse_step = AlgebraicParseStage::Piece;
+        let tokens = tokenize_string(string, SORTED_PIECE_MAP, active_player)?;
+        let tokens = pre_process_tokens(&tokens)?;
+
+        let mut token_iter = tokens.into_iter().peekable();
+
+        // Parse piece/castle
+        match token_iter.peek() {
+            None => return Err(ParseError::TokenizationError),
+            Some(Token::Castle(castle_type)) => {
+                proto_move.piece = Some(active_player.get_king());
+                proto_move.move_type = MoveType::Castling;
+                proto_move.castle_type = Some(*castle_type);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::MoveResult;
+            }
+            Some(Token::Piece(piece)) => {
+                proto_move.piece = Some(*piece);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Disambiguation;
+            },
+            Some(Token::Square(square)) => {
+                proto_move.piece = Some(active_player.get_pawn());
+                proto_move.origin = Disambiguity::Square(*square);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Capture;
+            }
+            Some(Token::Capture) => {
+                return Err(ParseError::MissingOriginError);
+            }
+            _ => return Err(ParseError::MissingPiece)
+        }
+
+        if parse_step <= AlgebraicParseStage::Disambiguation { match token_iter.peek() {
+            Some(Token::Square(square)) => {
+                proto_move.origin = Disambiguity::Square(*square);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Capture;
+            }
+            None | Some(_) => return Err(ParseError::MissingOriginError),
+        }}
+
+        if parse_step <= AlgebraicParseStage::Capture { match token_iter.peek() {
+            Some(Token::Capture) => {
+                proto_move.is_capture = Some(true);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Target;
+            }
+            Some(Token::Separator) => {
+                proto_move.is_capture = Some(false);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Target;
+            }
+            Some(Token::Square(square)) => {
+                proto_move.target = Some(*square);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Promotion;
+            }
+            Some(token) => return Err(ParseError::MalformedExpression(*token)),
+            None => return Err(ParseError::MissingTargetError)
+        }}
+
+        if parse_step <= AlgebraicParseStage::Target { match token_iter.peek() {
+            Some(Token::Square(square)) => {
+                proto_move.target = Some(*square);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::Promotion;
+            }
+            None | Some(_) => return Err(ParseError::MissingTargetError),
+        }}
+
+        if parse_step <= AlgebraicParseStage::Promotion { match token_iter.peek() {
+            None => return finalize(&mut proto_move),
+            Some(Token::Promotion(piece) | Token::Piece(piece)) => {
+                proto_move.promotion_piece = Some(*piece);
+
+                token_iter.next();
+
+                parse_step = AlgebraicParseStage::MoveResult
+            }
+            Some(Token::Check | Token::Checkmate | Token::Stalemate) => {
+                parse_step = AlgebraicParseStage::MoveResult;
+            }
+            Some(token) => return Err(ParseError::MalformedExpression(*token)),
+        }}
+
+        if parse_step > AlgebraicParseStage::MoveResult {
+            return Err(ParseError::AlgebraicParseModeError(parse_step));
+        }
+
+        // Parse last token
+        if parse_step <= AlgebraicParseStage::MoveResult { match token_iter.peek() {
+            None => {},
+            Some(Token::Check) => {
+                proto_move.move_result = MoveResult::Check;
+            }
+            Some(Token::Checkmate) => {
+                proto_move.move_result = MoveResult::Checkmate;
+            }
+            Some(Token::Stalemate) => {
+                proto_move.move_result = MoveResult::Stalemate;
+            }
+            Some(token) => {
+                return Err(ParseError::MalformedExpression(*token));
+            }
+        }}
+
+        // Token Vec should be emptied
+        if token_iter.peek().is_some() {
+            return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
+        }
+
+        //@TODO Replace with function call that returns chess_move.
+        Err(ParseError::Todo)
+    }
+
+    // pub fn normalize_piece_symbol(symbol: &str) -> Option<char> {
+    //     PIECE_MAP.binary_search_by_key(&symbol, |&(key, _)| key)
+    //         .ok()
+    //         .map(|index| SORTED_PIECE_MAP[index].1)
+    // }
+
+
+
+
+}
+
+fn finalize(proto_move: &mut ProtoMove) -> Result<ChessMove, ParseError>{
+    // @TODO
+    match proto_move.target {
+        Some(_) => {
+            ///@TODO pass `proto_move` to chess_moves.rs for validation
+            Err(ParseError::Todo)
+        }
+        None => {
+            Err(ParseError::MissingTargetError)
+        }
+    }
+}
+
+fn tokenize_string(string: &str, map:&[(char, char)], color: Color) -> Result<Vec<Token>, ParseError>{
+    let mut tokens: Vec<Token> = Vec::with_capacity(string.len());
+    let mut chars = string.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        match map.binary_search_by_key(&c, |&(key, _)| key)
             .ok()
-            .map(|index| SORTED_PIECE_MAP[index].1)
+            .map(|index| map[index].1)
+        {
+            Some(c) => match c{
+                //Pieces
+                'K'=> tokens.push(Token::Piece(if color == Color::White {Piece::WhiteKing} else {Piece::BlackKing})),
+                'Q' => tokens.push(Token::Piece(if color == Color::White {Piece::WhiteQueen} else {Piece::BlackQueen})),
+                'B' => tokens.push(Token::Piece(if color == Color::White {Piece::WhiteBishop} else {Piece::BlackBishop})),
+                'N' => tokens.push(Token::Piece(if color == Color::White {Piece::WhiteKnight} else {Piece::BlackKnight})),
+                'R' => tokens.push(Token::Piece(if color == Color::White {Piece::WhiteRook} else {Piece::BlackRook})),
+                'P' => tokens.push(Token::Piece(if color == Color::White {Piece::WhitePawn} else {Piece::BlackPawn})),
+                // File
+                'a'..='h' | 'A'..='H' => {
+                    /*if let Some(next_char) = chars.next() { match next_char {
+                    //File followed by Rank is a Square
+                    '1'..='8' => {
+                        chars.next(); // Consume '1'-'8'
+                        tokens.push(
+                            Token::Square(
+                                Square::new(Row::from_rank(c as u8 - '0' as u8),Col::from_file(next_char))
+                            )
+                        );
+                        continue;
+                    }
+                    //Just File, fall through and add File
+                    _ => {}
+                    }}*/
+                    tokens.push(Token::File(Col::from_file(c)))
+                },
+                '1'..='8' => {tokens.push(Token::Rank(Row::from_rank(c as u8 - '0' as u8)))},
+                // Capture
+                'x' => tokens.push(Token::Capture),
+                // Separator
+                '-' | '>' => tokens.push(Token::Separator),
+                // Check
+                '+' => tokens.push(Token::Check),
+                // Checkmate
+                '#' => tokens.push(Token::Checkmate),
+                // Stalemate
+                '‡' => tokens.push(Token::Stalemate),
+                // Promotion
+                '=' => tokens.push(Token::Promotion(if color == Color::White {Piece::WhitePawn} else {Piece::BlackPawn})),
+                // Castling
+                'O' => {
+                    // O-O
+                    if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'O') {
+                        chars.next();
+                        // O-O-O
+                        if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'O') {
+                            chars.next();
+                            tokens.push(Token::Castle(QueenSide));
+                        }} else {
+                            tokens.push(Token::Castle(KingSide));
+                        }
+                    }}
+                }
+                '0' => {
+                    // 0-0
+                    if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'0') {
+                        chars.next();
+                        // 0-0-0
+                        if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'0') {
+                            chars.next();
+                            tokens.push(Token::Castle(QueenSide));
+                        }} else {
+                            tokens.push(Token::Castle(KingSide));
+                        }
+                    }}
+                }
+                _ => return Err(ParseError::UnrecognizedCharInMap)
+            }
+            _ => return Err(ParseError::UnknownCharacter)
+        }
+
+    }
+
+    Ok(tokens)
+}
+
+fn pre_process_tokens(tokens: &Vec<Token>) -> Result<Vec<Token>, ParseError>{
+    let mut processed_tokens: Vec<Token> = Vec::with_capacity(tokens.len());
+    let mut token_iter = tokens.into_iter().peekable();
+
+    while let Some(token) = token_iter.next() { match token {
+            Token::Promotion(_) => {
+                match token_iter.peek() {
+                    Some(Token::Piece(next_piece)) => {
+                        token_iter.next(); // Consume next Token
+                        processed_tokens.push(Token::Promotion(*next_piece));
+                    }
+                    _ => return Err(ParseError::MissingPromotionPiece)
+                }
+            }
+            Token::File(col) => {
+                if let Some(Token::Rank(row)) = token_iter.peek() {
+                    if let Some(square) = Square::valid_new(*row, *col) {
+                        token_iter.next(); //Consume next Token
+                        processed_tokens.push(Token::Square(square));
+                    } else {
+                        return Err(ParseError::InvalidSquare(Square::new(*row, *col)));
+                    }
+                } else {
+                    processed_tokens.push(Token::File(*col));
+                }
+            }
+            // Token::Square(square) => {
+            //     processed_tokens.push(Token::Square(*square));
+            //     if let Some(Token::Piece(next_piece)) = token_iter.peek() {
+            //         token_iter.next(); //Consume next Token
+            //         processed_tokens.push(Token::Promotion(*next_piece));
+            //     }
+            // }
+            _ => processed_tokens.push(token.clone()),
+    }}
+
+    Ok(processed_tokens)
+}
+
+fn analyze_token_vec(tokens: Vec<Token>) -> () {
+    let mut square_count = 0;
+    let mut piece_count = 0;
+    let mut file_count = 0;
+    let mut rank_count = 0;
+    let mut flag_count = 0;
+    let mut is_capture = false;
+    let mut is_promotion = false;
+
+    for token in tokens {
+        match token {
+            Token::Square(s) => square_count+= 1,
+            Token::Piece(p) => piece_count+= 1,
+            Token::File(f) => file_count += 1,
+            Token::Rank(r) => rank_count += 1,
+            Token::Check | Token::Checkmate | Token::Stalemate => flag_count += 1,
+            Token::Capture => is_capture = true,
+            Token::Promotion(p) => is_promotion = true,
+            _ => {}
+        }
     }
 }
 
-fn parse_piece(piece_slice: &str) -> Result<Piece, ParseError> {
-    todo!("Implement me")
+// fn normalize_piece(piece_slice: &mut str, piz) -> Result<Piece, ParseError> {
+//
+// }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEST_MAP: &[(char, char)] = &[
+        ('#', '#'),('+', '+'),('-', '-'),('0', '0'),('1', '1'),('2', '2'),('3', '3'),('4', '4'),('5', '5'),('6', '6'),('7', '7'),('8', '8'),('=', '='),('B', 'B'),('K', 'K'),('N', 'N'),('O', 'O'),('P', 'P'),('Q', 'Q'),('R', 'R'),('a', 'a'),('b', 'b'),('c', 'c'),('d', 'd'),('e', 'e'),('f', 'f'),('g', 'g'),('h', 'h'),('x', 'x'),('‡', '‡'),
+    ];
+
+    #[test]
+    fn test_tokenize_piece() {
+        // Test that a single piece symbol is recognized.
+        let tokens = tokenize_string("K", TEST_MAP, Color::White).unwrap();
+        assert_eq!(tokens, vec![Token::Piece(Piece::WhiteKing)]);
+    }
+
+    #[test]
+    fn test_tokenize_file_and_rank() {
+        // The commented-out code in tokenize_string indicates that file and rank tokens are separate.
+        // For example, "a1" should produce a File token then a Rank token.
+        let tokens = tokenize_string("a1", TEST_MAP, Color::White).unwrap();
+        // We expect:
+        //   Token::File(Col::from_file('a'))
+        //   Token::Rank(Row::from_rank(1))
+        assert_eq!(tokens, vec![
+            Token::File(Col::from_file('a')),
+            Token::Rank(Row::from_rank(1))
+        ]);
+    }
+
+    #[test]
+    fn test_tokenize_capture_and_check() {
+        // Test capture 'x' and check '+' tokens.
+        let tokens = tokenize_string("x+", TEST_MAP, Color::Black).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Capture,
+            Token::Check,
+        ]);
+    }
+
+    #[test]
+    fn test_tokenize_promotion() {
+        // Test promotion token '=' should produce a Promotion token using the pawn of the given color.
+        let tokens = tokenize_string("=", TEST_MAP, Color::White).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Promotion(Piece::WhitePawn)
+        ]);
+    }
+
+    #[test]
+    fn test_tokenize_kingside_castling_o() {
+        // Test kingside castling using letter "O"
+        let tokens = tokenize_string("O-O", TEST_MAP, Color::Black).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Castle(KingSide)
+        ]);
+    }
+
+    #[test]
+    fn test_tokenize_queenside_castling_o() {
+        // Test queenside castling using letter "O"
+        let tokens = tokenize_string("O-O-O", TEST_MAP, Color::White).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Castle(QueenSide)
+        ]);
+    }
+
+    #[test]
+    fn test_tokenize_kingside_castling_zero() {
+        // Test kingside castling using zero "0"
+        let tokens = tokenize_string("0-0", TEST_MAP, Color::White).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Castle(KingSide)
+        ]);
+    }
+
+    #[test]
+    fn test_tokenize_queenside_castling_zero() {
+        // Test queenside castling using zero "0"
+        let tokens = tokenize_string("0-0-0", TEST_MAP, Color::Black).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Castle(QueenSide)
+        ]);
+    }
+
+    #[test]
+    fn test_mixed_tokens() {
+        // A more complex test that mixes piece, file, rank, capture, and check tokens.
+        // Example input: "Nf3xg5+"
+        // The function as written does not combine file+rank into Square tokens, so
+        // it should output separate tokens for each character.
+        let tokens = tokenize_string("Nf3xg5+", TEST_MAP, Color::White).unwrap();
+        // Expected tokens:
+        // 'N' -> Piece: WhiteKnight
+        // 'f' -> File token (file f)
+        // '3' -> Rank token (rank 3)
+        // 'x' -> Capture
+        // 'g' -> File token (file g)
+        // '5' -> Rank token (rank 5)
+        // '+' -> Check
+        assert_eq!(tokens, vec![
+            Token::Piece(Piece::WhiteKnight),
+            Token::File(Col::from_file('f')),
+            Token::Rank(Row::from_rank(3)),
+            Token::Capture,
+            Token::File(Col::from_file('g')),
+            Token::Rank(Row::from_rank(5)),
+            Token::Check,
+        ]);
+    }
+
+    #[test]
+    fn test_unrecognized_char() {
+        // Test that a character not in our mapping will be ignored (or in the case of a char that reaches the default branch,
+        // trigger an error). According to our function, if the binary search fails (i.e. None is returned) it just continues.
+        // Here we include a character in the input that is not in our TEST_MAP.
+        // For example, 'z' is not included in TEST_MAP.
+        let tokens = tokenize_string("z", TEST_MAP, Color::White).unwrap();
+        // Since 'z' is not found, it will be skipped and we expect an empty vector.
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn test_promotion_pre_processing() {
+        let raw = tokenize_string("=Q", TEST_MAP, Color::White).unwrap();
+        let processed = pre_process_tokens(&raw).unwrap();
+        assert_eq!(processed, vec![Token::Promotion(Piece::WhiteQueen)]);
+    }
+
+    #[test]
+    fn test_square_pre_processing() {
+        let raw = tokenize_string("a1", TEST_MAP, Color::White).unwrap();
+        let processed = pre_process_tokens(&raw).unwrap();
+        assert_eq!(
+            processed,
+            vec![Token::Square(Square::new(Row::from_rank(1), Col::from_file('a')))]
+        );
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

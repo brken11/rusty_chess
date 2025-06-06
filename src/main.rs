@@ -38,7 +38,7 @@ fn main() {
         println!("{}", m.debug_string());
     }
 
-    if let Some(c)= move_parser::chess_notation_parser::normalize_piece_symbol("👸"){
-        println!("Normalized text {}", c.to_string());
-    }
+    // if let Some(c)= move_parser::chess_notation_parser::normalize_piece_symbol("👸"){
+    //     println!("Normalized text {}", c.to_string());
+    // }
 }
