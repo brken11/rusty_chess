@@ -20,7 +20,7 @@ To run Rusty Chess on your machine:
 1. Clone this repository:
 
    ```bash
-   git clone https://github.com/your-username/rusty_chess.git
+   git clone https://github.com/brken11/rusty_chess.git
    ```
 
 2. Change to the project directory:
@@ -28,7 +28,7 @@ To run Rusty Chess on your machine:
     cd rusty_chess
     ```
 3. Build and run the project using Cargo:
-   ```    
+   ```bash
    cargo run
    ```
 ## *Intended* Usage

@@ -24,13 +24,13 @@ pub trait SquareExt {
     /// Otherwise, it iterates from row 0 up to the current row (exclusive).
     fn get_rows(&self, ascending : bool) -> RowIterator;
     /// Returns an iterator over squares in the same column (file) in the given direction.
-    fn get_row_squares(&self, ascending : bool) -> impl Iterator<Item = Square>;
+    fn get_row_squares(&self, ascending : bool) -> SquareIterator;
     /// Returns the column (0-based) for the square.
     fn get_col(&self) -> Col;
     /// Returns an iterator over columns relative to this square.
     fn get_cols(&self, ascending : bool) -> ColIterator;
     /// Returns an iterator over squares in the same row (rank) in the given direction.
-    fn get_col_squares(&self, ascending : bool) -> impl Iterator<Item = Square>;
+    fn get_col_squares(&self, ascending : bool) -> SquareIterator;
     /// Returns a tuple of (row, column) for the square.
     fn get_pos_pair(&self) -> (Row, Col);
     /// Returns the index of the square as a `usize`.
@@ -120,7 +120,7 @@ impl SquareExt for Square {
             ascending,
         }
     }
-    fn get_col_squares(&self, ascending : bool) -> impl Iterator<Item = Square> {
+    fn get_col_squares(&self, ascending : bool) -> SquareIterator {
         if ascending {
             SquareIterator{
                 square: *self,
@@ -230,6 +230,7 @@ pub trait RowExt {
     /// let r:Row = 5; assert!(r.get_next_row(true), 6); assert!(r.get_next_row(false), 4);
     /// ```
     fn get_next_row(&self, ascending: bool) -> Option<Row>;
+    fn from_rank(rank: u8) -> Self;
 }
 pub trait ColExt {
     const MAX_COLS: u8;
@@ -248,6 +249,7 @@ pub trait ColExt {
     /// let c:Col = 5; assert!(c.get_next_col(true), 6); assert!(c.get_next_col(false), 4);
     /// ```
     fn get_next_col(&self, ascending: bool) -> Option<Col>;
+    fn from_file(file: char) -> Self;
 }
 impl RowExt for Row {
     const MAX_ROWS: u8 = Square::ROWS;
@@ -259,6 +261,9 @@ impl RowExt for Row {
             None
         }
     }
+    fn from_rank(rank: u8) -> Row {
+        Row::MAX_ROWS - rank
+    }
 }
 impl ColExt for Col {
     const MAX_COLS: u8 = Square::COLS;
@@ -268,6 +273,13 @@ impl ColExt for Col {
             Some(next)
         } else {
             None
+        }
+    }
+    fn from_file(file: char) -> Col {
+        if file >= 'a' {
+            file as u8 - 'a' as u8
+        } else {
+            file as u8 - 'A' as u8
         }
     }
 }

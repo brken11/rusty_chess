@@ -7,6 +7,7 @@ use rules::CastleType;
 use crate::board::{pieces, Square, SquareExt, Board, CastlingRightsExt};
 use pieces::Piece;
 use crate::board::pieces::Color;
+use crate::board::square::{Col, Row};
 use crate::chess_moves::MoveError::{CastleNotPermmited, IllegalMove, IllegalPromotion, KingCannotSeeRook, LeavesKingInCheck, ObstructedMove};
 use crate::rules::MoveType;
 
@@ -45,7 +46,14 @@ pub enum MoveData {
     GeneratedOnly,
 }
 
-pub enum SpecialMoveType{
+/// Used locally in the module as MoveType concerns itself over class of move type.
+/// Special Move is focused on what should happen on the board. Ex: A pawn moving two spaces is
+/// a regular move all things concerned. But the board needs to know that En-Passant is possible
+/// for the opponent now, so the flag must be set.
+///
+/// The primary philosophy is that an instance of ChessMove when validated against a board should
+/// not check the board state, but have all the information to legally execute the move encoded.
+enum SpecialMoveType{
     None,//Has Capture Variant
     Castling,
     Promotion,//Has capture Variant
@@ -53,6 +61,7 @@ pub enum SpecialMoveType{
     EnableEnPassant,
 }
 
+#[derive(Debug)]
 pub enum MoveError{
     CapturedPieceNotProvided,
     LeavesKingInCheck,
@@ -64,6 +73,14 @@ pub enum MoveError{
     CastleNotPermmited,
     KingCannotSeeRook,
     IllegalPromotion,
+}
+
+#[derive(Debug)]
+pub enum Disambiguity {
+    None,
+    Rank(Row),
+    File(Col),
+    Square(Square),
 }
 
 #[derive(Debug,)]
@@ -110,9 +127,7 @@ impl ChessMove {
         chess_move.validate_move(board)?;
         Ok(chess_move)
     }
-    // pub fn from_long_algebraic(long_algebraic_notation: String) -> Result<ChessMove, None> {
-    //
-    // }
+
     fn assemble_special_move(move_type: MoveType, captures: bool, enables_en_passant: bool, result: MoveResult) -> MoveData {
         if enables_en_passant {
             build_move_type(MoveData::EnableEnPassant, result)
