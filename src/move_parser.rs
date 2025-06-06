@@ -258,7 +258,7 @@ pub(crate) mod chess_notation_parser {
 
         if parse_step <= AlgebraicParseStage::Promotion { match token_iter.peek() {
             None => {
-                ///@TODO pass `proto_move` to chess_moves.rs for validation
+                //@TODO pass `proto_move` to chess_moves.rs for validation
                 return Err(ParseError::Todo)
             }
             Some(Token::Promotion(piece)) => {
@@ -467,7 +467,7 @@ fn finalize(proto_move: &mut ProtoMove) -> Result<ChessMove, ParseError>{
     // @TODO
     match proto_move.target {
         Some(_) => {
-            ///@TODO pass `proto_move` to chess_moves.rs for validation
+            //@TODO pass `proto_move` to chess_moves.rs for validation
             Err(ParseError::Todo)
         }
         None => {
