@@ -12,6 +12,15 @@ pub trait SquareExt {
     const ROWS: u8;
     /// Number of Columns
     const COLS: u8;
+    /// Squares
+    const A1: Square; const A2: Square; const A3: Square; const A4: Square; const A5: Square; const A6: Square; const A7: Square; const A8: Square;
+    const B1: Square; const B2: Square; const B3: Square; const B4: Square; const B5: Square; const B6: Square; const B7: Square; const B8: Square;
+    const C1: Square; const C2: Square; const C3: Square; const C4: Square; const C5: Square; const C6: Square; const C7: Square; const C8: Square;
+    const D1: Square; const D2: Square; const D3: Square; const D4: Square; const D5: Square; const D6: Square; const D7: Square; const D8: Square;
+    const E1: Square; const E2: Square; const E3: Square; const E4: Square; const E5: Square; const E6: Square; const E7: Square; const E8: Square;
+    const F1: Square; const F2: Square; const F3: Square; const F4: Square; const F5: Square; const F6: Square; const F7: Square; const F8: Square;
+    const G1: Square; const G2: Square; const G3: Square; const G4: Square; const G5: Square; const G6: Square; const G7: Square; const G8: Square;
+    const H1: Square; const H2: Square; const H3: Square; const H4: Square; const H5: Square; const H6: Square; const H7: Square; const H8: Square;
     /// Array of square labels, from "a8","b8","c8" ... to ..., "f1", "g1", "h1".
     const SQUARES: [&'static str; 64];
     /// Returns the row (0-based) for the square.
@@ -66,6 +75,14 @@ impl SquareExt for Square {
     const MAX: u8 = Square::ROWS * Square::COLS;
     const ROWS: u8 = 8;
     const COLS: u8 = 8;
+    const A8: Square =  0 as Square; const B8: Square =  1 as Square; const C8: Square =  2 as Square; const D8: Square =  3 as Square; const E8: Square =  4 as Square; const F8: Square =  5 as Square; const G8: Square =  6 as Square; const H8: Square =  7 as Square;
+    const A7: Square =  8 as Square; const B7: Square =  9 as Square; const C7: Square = 10 as Square; const D7: Square = 11 as Square; const E7: Square = 12 as Square; const F7: Square = 13 as Square; const G7: Square = 14 as Square; const H7: Square = 15 as Square;
+    const A6: Square = 16 as Square; const B6: Square = 17 as Square; const C6: Square = 18 as Square; const D6: Square = 19 as Square; const E6: Square = 20 as Square; const F6: Square = 21 as Square; const G6: Square = 22 as Square; const H6: Square = 23 as Square;
+    const A5: Square = 24 as Square; const B5: Square = 25 as Square; const C5: Square = 26 as Square; const D5: Square = 27 as Square; const E5: Square = 28 as Square; const F5: Square = 29 as Square; const G5: Square = 30 as Square; const H5: Square = 31 as Square;
+    const A4: Square = 32 as Square; const B4: Square = 33 as Square; const C4: Square = 34 as Square; const D4: Square = 35 as Square; const E4: Square = 36 as Square; const F4: Square = 37 as Square; const G4: Square = 38 as Square; const H4: Square = 39 as Square;
+    const A3: Square = 40 as Square; const B3: Square = 41 as Square; const C3: Square = 42 as Square; const D3: Square = 43 as Square; const E3: Square = 44 as Square; const F3: Square = 45 as Square; const G3: Square = 46 as Square; const H3: Square = 47 as Square;
+    const A2: Square = 48 as Square; const B2: Square = 49 as Square; const C2: Square = 50 as Square; const D2: Square = 51 as Square; const E2: Square = 52 as Square; const F2: Square = 53 as Square; const G2: Square = 54 as Square; const H2: Square = 55 as Square;
+    const A1: Square = 56 as Square; const B1: Square = 57 as Square; const C1: Square = 58 as Square; const D1: Square = 59 as Square; const E1: Square = 60 as Square; const F1: Square = 61 as Square; const G1: Square = 62 as Square; const H1: Square = 63 as Square;
     const SQUARES: [&'static str; 64] = [
         "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
         "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",

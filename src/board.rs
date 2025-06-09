@@ -100,13 +100,14 @@ pub trait BitboardExt{
 }
 impl BitboardExt for Bitboard {
     fn get_bitboard_from_row(row: Row) -> Bitboard {
-        0x00000000000000FF << row
+        0x00000000000000FF << (row * Square::COLS)
     }
     fn get_bitboard_from_col(col:Col) -> Bitboard {
         0x0101010101010101 << col
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 /// Represents a chess board with pieces, castling rights, en passant state,
 /// move counters, and the active player.
 pub struct Board {
@@ -760,15 +761,16 @@ impl Board {
         while bitboard != 0 {
             let pos: Square = bitboard.trailing_zeros() as u8;
             if let Some(piece) = self.get_piece_at(pos) {pieces.push((piece,pos));}
-            bitboard &= 1<<pos;
+            bitboard &= !(1<<pos);
         }
         pieces
     }
-    pub fn get_piece_squares_from_bitboard(&self, piece: Piece, bitboard: Bitboard) -> Vec<Square> {
+    pub fn get_piece_squares_from_bitboard(&self, piece: Piece, mut bitboard: Bitboard) -> Vec<Square> {
         let mut squares: Vec<Square> = Vec::new();
-        while bitboard > 0 {
+        while bitboard != 0 {
             let pos: Square = bitboard.trailing_zeros() as u8;
             if self.is_piece_at(pos, piece) {squares.push(pos);}
+            bitboard &= !(1 << pos);
         }
         squares
     }

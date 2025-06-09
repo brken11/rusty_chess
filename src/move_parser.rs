@@ -34,7 +34,7 @@ pub const PIECE_MAP: &[(&str, char)] = &[
     ("🏰", 'R'), ("🏯", 'R'),
     ("飛", 'R'), ("車", 'R'), ("俥", 'R'), // Shogi & Xiangqi Rooks
 ];
-pub const SORTED_PIECE_MAP: &[(char, char)] = &[('B', 'B'),('K', 'K'),('N', 'N'),('P', 'P'),('Q', 'Q')/*,("Q̲", 'Q')*/,('R', 'R'),('ᴋ', 'K'),('ᴎ', 'N'),('⒝', 'B'),('⒦', 'K'),('⒩', 'N'),('⒫', 'P'),('⒬', 'Q'),('⒭', 'R'),('Ⓚ', 'K'),('Ⓝ', 'N'),('Ⓟ', 'P'),('Ⓠ', 'Q'),('Ⓡ', 'R'),('ⓑ', 'B'),('♔', 'K'),('♕', 'Q'),('♖', 'R'),('♗', 'B'),('♘', 'N'),('♙', 'P'),('♚', 'K'),('♛', 'Q'),('♜', 'R'),('♝', 'B'),('♞', 'N'),('♟', 'P')/*,("⚜️", 'B')*//*,("✝️", 'B')*/,('㋛', 'Q'),('㋜', 'R'),('㋝', 'B'),('㋞', 'K'),('俥', 'R'),('傌', 'N'),('兵', 'P'),('卒', 'P'),('将', 'K'),('帅', 'K'),('桂', 'N'),('歩', 'P'),('王', 'K'),('角', 'B'),('象', 'B'),('車', 'R'),('飛', 'R'),('馬', 'N'),('🄌', 'Q'),('🄍', 'R'),('🄑', 'B'),('🄚', 'K'),('🄝', 'N'),('🄟', 'P'),('🄺', 'K'),('🅀', 'Q'),('🅁', 'R'),('🅑', 'B'),('🅚', 'K'),('🅝', 'N'),('🅟', 'P'),('🅺', 'K'),('🏃', 'P'),('🏇', 'N'),('🏯', 'R'),('🏰', 'R'),('🐴', 'N'),('👑', 'K'),('👑', 'Q'),('👸', 'Q'),('🚶', 'P'),('🤴', 'K'),('🦄', 'N')];
+pub const SORTED_PIECE_MAP: &[(char, char)] = &[('+', '+'), ('-', '-'), ('0', '0'), ('1', '1'), ('2', '2'), ('3', '3'), ('4', '4'), ('5', '5'), ('6', '6'), ('7', '7'), ('8', '8'), ('=', '='), ('>', '>'), ('B', 'B'), ('K', 'K'), ('N', 'N'), ('O', 'O'), ('P', 'P'), ('Q', 'Q'), ('R', 'R'), ('a', 'a'), ('b', 'b'), ('c', 'c'), ('d', 'd'), ('e', 'e'), ('f', 'f'), ('g', 'g'), ('h', 'h'), ('x', 'x'), ('ᴋ', 'K'), ('ᴎ', 'N'), ('⒝', 'B'), ('⒦', 'K'), ('⒩', 'N'), ('⒫', 'P'), ('⒬', 'Q'), ('⒭', 'R'), ('Ⓚ', 'K'), ('Ⓝ', 'N'), ('Ⓟ', 'P'), ('Ⓠ', 'Q'), ('Ⓡ', 'R'), ('ⓑ', 'B'), ('♔', 'K'), ('♕', 'Q'), ('♖', 'R'), ('♗', 'B'), ('♘', 'N'), ('♙', 'P'), ('♚', 'K'), ('♛', 'Q'), ('♜', 'R'), ('♝', 'B'), ('♞', 'N'), ('♟', 'P'), ('㋛', 'Q'), ('㋜', 'R'), ('㋝', 'B'), ('㋞', 'K'), ('俥', 'R'), ('傌', 'N'), ('兵', 'P'), ('卒', 'P'), ('将', 'K'), ('帅', 'K'), ('桂', 'N'), ('歩', 'P'), ('王', 'K'), ('角', 'B'), ('象', 'B'), ('車', 'R'), ('飛', 'R'), ('馬', 'N'), ('🄌', 'Q'), ('🄍', 'R'), ('🄑', 'B'), ('🄚', 'K'), ('🄝', 'N'), ('🄟', 'P'), ('🄺', 'K'), ('🅀', 'Q'), ('🅁', 'R'), ('🅑', 'B'), ('🅚', 'K'), ('🅝', 'N'), ('🅟', 'P'), ('🅺', 'K'), ('🏃', 'P'), ('🏇', 'N'), ('🏯', 'R'), ('🏰', 'R'), ('🐴', 'N'), ('👑', 'K'), ('👑', 'Q'), ('👸', 'Q'), ('🚶', 'P'), ('🤴', 'K'), ('🦄', 'N')];
 #[derive(Debug)]
 pub enum ParseError{
     MissingPiece,
@@ -135,6 +135,8 @@ pub(crate) mod chess_notation_parser {
             Some(Token::File(col)) => {
                 proto_move.piece = Some(active_player.get_pawn());
                 proto_move.origin = Disambiguity::File(*col);
+                
+                token_iter.next();
 
                 parse_step = AlgebraicParseStage::Capture;
             }
@@ -259,8 +261,7 @@ pub(crate) mod chess_notation_parser {
 
         if parse_step <= AlgebraicParseStage::Promotion { match token_iter.peek() {
             None => {
-                //@TODO pass `proto_move` to chess_moves.rs for validation
-                return Err(ParseError::Todo)
+                return finalize(proto_move);
             }
             Some(Token::Promotion(piece)) => {
                 proto_move.move_type = MoveType::Promotion;
@@ -285,7 +286,7 @@ pub(crate) mod chess_notation_parser {
 
         // Parse last token
         match token_iter.next() {
-            None => {},
+            None => return finalize(proto_move),
             Some(Token::Check) => {
                 proto_move.move_result = MoveResult::Check;
             }
@@ -306,8 +307,7 @@ pub(crate) mod chess_notation_parser {
             return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
         }
 
-        //@TODO Replace with function call that returns chess_move.
-        Err(ParseError::Todo)
+        finalize(proto_move)
     }
     pub fn from_long_algebraic_notation(string: &str, active_player: Color) -> Result<ProtoMove, ParseError> {
         let mut proto_move: ProtoMove = ProtoMove{
@@ -422,13 +422,9 @@ pub(crate) mod chess_notation_parser {
             Some(token) => return Err(ParseError::MalformedExpression(*token)),
         }}
 
-        if parse_step > AlgebraicParseStage::MoveResult {
-            return Err(ParseError::AlgebraicParseModeError(parse_step));
-        }
-
         // Parse last token
         if parse_step <= AlgebraicParseStage::MoveResult { match token_iter.peek() {
-            None => {},
+            None => return finalize(proto_move),
             Some(Token::Check) => {
                 proto_move.move_result = MoveResult::Check;
             }
@@ -443,13 +439,16 @@ pub(crate) mod chess_notation_parser {
             }
         }}
 
+        if parse_step > AlgebraicParseStage::MoveResult {
+            return Err(ParseError::AlgebraicParseModeError(parse_step));
+        }
+
         // Token Vec should be emptied
         if token_iter.peek().is_some() {
             return Err(ParseError::MalformedExpression(token_iter.next().unwrap()));
         }
 
-        //@TODO Replace with function call that returns chess_move.
-        Err(ParseError::Todo)
+        finalize(proto_move)
     }
 
 
@@ -520,6 +519,12 @@ pub(crate) mod chess_notation_parser {
 }
 
 fn finalize(proto_move: ProtoMove) -> Result<ProtoMove, ParseError>{
+    match proto_move.move_type {
+        MoveType::Castling => {
+            return Ok(proto_move);
+        }
+        _ => {}
+    }
     if proto_move.target.is_some() {
         Ok(proto_move)
     } else {
@@ -681,6 +686,7 @@ fn pre_process_tokens(tokens: &Vec<Token>) -> Result<Vec<Token>, ParseError>{
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::chess_notation_parser::*;
 
     const TEST_MAP: &[(char, char)] = &[
         ('#', '#'),('+', '+'),('-', '-'),('0', '0'),('1', '1'),('2', '2'),('3', '3'),('4', '4'),('5', '5'),('6', '6'),('7', '7'),('8', '8'),('=', '='),('B', 'B'),('K', 'K'),('N', 'N'),('O', 'O'),('P', 'P'),('Q', 'Q'),('R', 'R'),('a', 'a'),('b', 'b'),('c', 'c'),('d', 'd'),('e', 'e'),('f', 'f'),('g', 'g'),('h', 'h'),('x', 'x'),('‡', '‡'),
@@ -790,13 +796,9 @@ mod tests {
 
     #[test]
     fn test_unrecognized_char() {
-        // Test that a character not in our mapping will be ignored (or in the case of a char that reaches the default branch,
-        // trigger an error). According to our function, if the binary search fails (i.e. None is returned) it just continues.
-        // Here we include a character in the input that is not in our TEST_MAP.
-        // For example, 'z' is not included in TEST_MAP.
-        let tokens = tokenize_string("z", TEST_MAP, Color::White).unwrap();
-        // Since 'z' is not found, it will be skipped and we expect an empty vector.
-        assert!(tokens.is_empty());
+        // Test that an unrecognized character like 'z' triggers an UnrecognizedCharInMap error.
+        let result = tokenize_string("z", TEST_MAP, Color::White);
+        assert!(matches!(result, Err(ParseError::UnknownCharacter)));
     }
 
     #[test]
@@ -814,6 +816,128 @@ mod tests {
             processed,
             vec![Token::Square(Square::new(Row::from_rank(1), Col::from_file('a')))]
         );
+    }
+
+    #[test]
+    fn test_san_simple_knight_move() {
+        let result = from_simplified_algebraic_notation("Nf3", Color::White);
+        assert!(matches!(result, Ok(_)));
+    }
+
+    #[test]
+    fn test_san_disambiguation_by_file() {
+        let result = from_simplified_algebraic_notation("Nbd2", Color::White);
+        assert!(matches!(result, Ok(_)));
+    }
+
+    #[test]
+    fn test_san_capture_with_check() {
+        let result = from_simplified_algebraic_notation("Qxe5+", Color::White);
+        assert!(matches!(result, Ok(_)));
+    }
+
+    #[test]
+    fn test_san_promotion() {
+        let result = from_simplified_algebraic_notation("e8=Q", Color::White);
+        assert!(matches!(result, Ok(_)));
+    }
+
+    #[test]
+    fn test_san_kingside_castle() {
+        let result = from_simplified_algebraic_notation("O-O", Color::White);
+        assert!(matches!(result, Ok(_)));
+    }
+
+    #[test]
+    fn test_san_invalid_token() {
+        let result = from_simplified_algebraic_notation("Nb@", Color::White);
+        assert!(matches!(result, Err(ParseError::UnknownCharacter)));
+    }
+
+    #[test]
+    fn test_lan_basic_move() {
+        let result = from_long_algebraic_notation("e2-e4", Color::White);
+        assert!(matches!(result, Ok(_)));
+    }
+
+    #[test]
+    fn test_lan_promotion() {
+        let result = from_long_algebraic_notation("e7-e8Q", Color::White);
+        let result2 = from_long_algebraic_notation("a2xb1=N", Color::Black);
+        assert!(matches!(result, Ok(_)));
+        assert!(matches!(result2, Ok(_)))
+    }
+
+    #[test]
+    fn test_lan_missing_origin() {
+        let result = from_long_algebraic_notation("xe4", Color::White);
+        assert!(matches!(result, Err(ParseError::MissingOriginError)));
+    }
+
+    #[test]
+    fn test_proto_missing_target_square() {
+        let proto = ProtoMove {
+            piece: Some(Piece::WhiteQueen),
+            origin: Disambiguity::File(Col::from_file('d')),
+            is_capture: Some(true),
+            target: None,
+            move_type: MoveType::Regular,
+            promotion_piece: None,
+            castle_type: None,
+            move_result: MoveResult::Check,
+        };
+        let mut board = Board::std_new();
+        let result = ChessMove::new_from_proto(&mut board, proto);
+        assert!(matches!(result, Err(ParseError::MissingTargetError)));
+    }
+
+    #[test]
+    fn test_chess_move_knight_opening() {
+        let mut board = Board::std_new(); // Standard board
+        let proto = from_simplified_algebraic_notation("Nf3", Color::White).unwrap();
+        let mv = ChessMove::new_from_proto(&mut board, proto);
+        assert!(mv.is_ok());
+    }
+
+    #[test]
+    fn test_chess_move_pawn_two_step() {
+        let mut board = Board::std_new();
+        let proto = from_simplified_algebraic_notation("e4", Color::White).unwrap();
+        let mv = ChessMove::new_from_proto(&mut board, proto);
+        assert!(mv.is_ok());
+    }
+
+    #[test]
+    fn test_chess_move_disambiguate() {
+        let mut board = Board::std_new();
+        ChessMove::new_from_squares(&mut board, Square::E2, Square::E4, false).unwrap().make_move(&mut board); // e4
+        ChessMove::new_from_squares(&mut board, Square::D7, Square::D5, false).unwrap().make_move(&mut board); // d5
+        ChessMove::new_from_squares(&mut board, Square::B1, Square::C3, false).unwrap().make_move(&mut board); // Nc3
+        ChessMove::new_from_squares(&mut board, Square::F7, Square::F5, false).unwrap().make_move(&mut board); // f5
+
+        let proto1 = from_simplified_algebraic_notation("N3e2", Color::White);
+        assert!(proto1.is_ok());
+        let mv1 = ChessMove::new_from_proto(&mut board, proto1.unwrap()); // Two knights can go to e2
+        assert!(mv1.is_ok());
+        mv1.unwrap().make_move(&mut board);
+
+        let proto2 = from_simplified_algebraic_notation("Pxe4", Color::Black); // Two pawns can go to e4
+        assert!(proto2.is_ok());// Parse goes normally
+        let mv2 = ChessMove::new_from_proto(&mut board, proto2.unwrap()); // Returns IllegalMoveError(DisambiguousMove)
+        assert!(mv2.is_err());
+        let proto3 = from_simplified_algebraic_notation("dxe4", Color::Black);
+        assert!(proto3.is_ok());
+        let mv3 = ChessMove::new_from_proto(&mut board, proto3.unwrap());
+        mv3.unwrap().make_move(&mut board);
+        assert!(true);
+    }
+
+    #[test]
+    fn test_chess_move_illegal_rook_jump() {
+        let mut board = Board::std_new();
+        let proto = from_simplified_algebraic_notation("Ra3", Color::White).unwrap(); // Rook can't jump
+        let mv = ChessMove::new_from_proto(&mut board, proto);
+        assert!(matches!(mv, Err(ParseError::IllegalMoveError(_))));
     }
 }
 

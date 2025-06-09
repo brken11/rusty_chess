@@ -1,4 +1,4 @@
-use crate::board::Square;
+use crate::board::square::{Square, SquareExt};
 use crate::rules::CastleType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -252,7 +252,7 @@ impl Color {
     pub const fn get_pawn_starting_row(&self) -> u8 {
         match self{
             Color::White => 6,
-            Color::Black => 2,
+            Color::Black => 1,
         }
     }
     pub const fn get_pawn_promotion_row(&self) -> u8 {
@@ -299,14 +299,14 @@ impl Color {
     }
     pub const fn king_starting_square(&self) -> Square {
         match self {
-            Color::White => 60,
-            Color::Black => 4,
+            Color::White => Square::E1,
+            Color::Black => Square::E8,
         }
     }
     pub const fn king_castle_target(&self, castle_type: CastleType) -> Square {
         match self {
-            Color::White => match castle_type {CastleType::KingSide => 62, CastleType::QueenSide => 58},
-            Color::Black => match castle_type {CastleType::KingSide => 6, CastleType::QueenSide => 2},
+            Color::White => match castle_type {CastleType::KingSide => Square::G1, CastleType::QueenSide => Square::C1},
+            Color::Black => match castle_type {CastleType::KingSide => Square::G8, CastleType::QueenSide => Square::C8},
         }
     }
 }

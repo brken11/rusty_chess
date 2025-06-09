@@ -111,7 +111,7 @@ const BLACK_KINGSIDE_CASTLE: ChessMove = ChessMove{
 const BLACK_QUEENSIDE_CASTLE: ChessMove = ChessMove{
     piece: Piece::BlackKing,
     origin: Color::Black.king_starting_square(),
-    target: Color::Black.king_castle_target(CastleType::KingSide),
+    target: Color::Black.king_castle_target(CastleType::QueenSide),
     meta_data: MoveData::Castling
 };
 
@@ -209,23 +209,23 @@ impl ChessMove {
 
         match piece {
             Piece::WhitePawn | Piece::BlackPawn => {
-                let row_offset = piece.get_color().get_pawn_direction();
-                if let Some(origin) = Square::valid_new(row + row_offset, col) {
+                let row_offset = piece.get_color().get_pawn_row_offset();
+                if let Some(origin) = Square::valid_new(row - row_offset, col) {
                     if let Ok(chess_move) = ChessMove::valid_new(board, piece, origin, target, is_promotion) {
                         moves.push(chess_move);
                     }
                 }
-                if let Some(origin) = Square::valid_new(row + row_offset, col - 1) {
+                if let Some(origin) = Square::valid_new(row - row_offset, col - 1) {
                     if let Ok(chess_move) = ChessMove::valid_new(board, piece, origin, target, is_promotion) {
                         moves.push(chess_move);
                     }
                 }
-                if let Some(origin) = Square::valid_new(row + row_offset, col + 1) {
+                if let Some(origin) = Square::valid_new(row - row_offset, col + 1) {
                     if let Ok(chess_move) = ChessMove::valid_new(board, piece, origin, target, is_promotion) {
                         moves.push(chess_move);
                     }
                 }
-                if let Some(origin) = Square::valid_new(row + row_offset + row_offset, col) {
+                if let Some(origin) = Square::valid_new(row - row_offset - row_offset, col) {
                     if let Ok(chess_move) = ChessMove::valid_new(board, piece, origin, target, is_promotion) {
                         moves.push(chess_move);
                     }
@@ -248,11 +248,15 @@ impl ChessMove {
                         let ascending:bool = i%2 == 1;
                         let (_, origin) = board.clear_n_capture_down_rank(target, ascending, board.active_player);
                         if let Some(origin_square) = origin {
-                            moves.push(ChessMove::new(piece, origin_square, target, MoveData::Capture));
+                            if board.get_piece_at(origin_square) == Some(piece) {
+                                moves.push(ChessMove::new(piece, origin_square, target, MoveData::Normal));
+                            }
                         }
                         let (_, origin) = board.clear_n_capture_down_file(target, ascending, board.active_player);
                         if let Some(origin_square) = origin {
-                            moves.push(ChessMove::new(piece, origin_square, target, MoveData::Capture));
+                            if board.get_piece_at(origin_square) == Some(piece) {
+                                moves.push(ChessMove::new(piece, origin_square, target, MoveData::Normal));
+                            }
                         }
                     }
                 }
@@ -264,7 +268,9 @@ impl ChessMove {
                         let (_, origin) = board.clear_n_capture_down_diagonal(target, ascending, ascending_col, board.active_player);
 
                         if let Some(origin_square) = origin {
-                            moves.push(ChessMove::new(piece, origin_square, target, MoveData::Capture));
+                            if board.get_piece_at(origin_square) == Some(piece) {
+                                moves.push(ChessMove::new(piece, origin_square, target, MoveData::Normal));
+                            }
                         }
                     }
                 }
@@ -343,6 +349,11 @@ impl ChessMove {
 
 
     fn make_move_on_board(&self, board: &mut Board){
+        if self.meta_data.is_enable_en_passant() {
+            board.en_passant_square = Some( (self.origin + self.target)/2 )
+        } else {
+            board.en_passant_square = None;
+        }
         match self.meta_data.get_move_type() {
             MoveType::Regular => {
                 if self.meta_data.is_capture() {
@@ -352,12 +363,6 @@ impl ChessMove {
                 }
                 _ = board.remove_piece_at(self.origin, self.piece);
                 _ = board.add_piece_at(self.target, self.piece);
-
-                if self.meta_data.is_enable_en_passant() {
-                    board.en_passant_square = Some(self.origin)
-                } else {
-                    board.en_passant_square = None;
-                }
             }
             MoveType::Castling => {
                 let color = self.piece.get_color();
@@ -529,6 +534,9 @@ impl ChessMove {
     fn validate_movement(&mut self, board: &Board) -> Result<(),MoveError> {
         if self.meta_data.is_promotion() {
             return self.validate_promotion(board);
+        }
+        if board.get_piece_at(self.origin) != Some(self.piece) {
+            return Err(MoveError::IllegalMove);
         }
         match self.piece {
             // Pawn has own validation logic for captures
@@ -804,12 +812,12 @@ impl ChessMove {
     /// * `Err(MoveError::IllegalPromotion)` if the promotion piece is invalid or target square isn't at the promotion rank
     /// * `Err(MoveError::IllegalMove)` if the move breaks pawn movement rules
     fn validate_promotion(&mut self, board: &Board) -> Result<(), MoveError> {
-        let row_delta = self.origin.col_diff(self.target);
+        let row_delta = self.origin.row_diff(self.target);
         if row_delta != 1 { return Err(IllegalMove); }
 
         if self.piece.get_color().get_pawn_promotion_row() != self.target.get_row() {return Err(IllegalPromotion); }
 
-        let col_delta = self.origin.row_diff(self.target);
+        let col_delta = self.origin.col_diff(self.target);
 
         // Filter bad cases
         match col_delta {
