@@ -4,10 +4,9 @@ use crate::rules;
 use rules::MoveResult;
 use rules::CastleType;
 
-use crate::board::{pieces, Square, SquareExt, Board, CastlingRightsExt};
-use pieces::Piece;
-use crate::board::pieces::Color;
-use crate::board::square::{Col, Row};
+use crate::board::{Bitboard, BitboardExt, Board, CastlingRightsExt};
+use crate::board::pieces::{Color, Piece};
+use crate::board::square::{Square, SquareExt, Col, Row};
 use crate::chess_moves::MoveError::{CastleNotPermmited, IllegalMove, IllegalPromotion, KingCannotSeeRook, LeavesKingInCheck, ObstructedMove};
 use crate::rules::MoveType;
 
@@ -83,12 +82,49 @@ pub enum Disambiguity {
     Square(Square),
 }
 
-#[derive(Debug,)]
+#[derive(Debug,Copy,Clone)]
 pub struct ChessMove {
     piece: Piece,
     origin: Square,
     target: Square,
     meta_data: MoveData,
+}
+
+const WHITE_KINGSIDE_CASTLE: ChessMove = ChessMove{
+    piece: Piece::WhiteKing,
+    origin: Color::White.king_starting_square(),
+    target: Color::White.king_castle_target(CastleType::KingSide),
+    meta_data: MoveData::Castling
+};
+const WHITE_QUEENSIDE_CASTLE: ChessMove = ChessMove{
+    piece: Piece::WhiteKing,
+    origin: Color::White.king_starting_square(),
+    target: Color::White.king_castle_target(CastleType::QueenSide),
+    meta_data: MoveData::Castling
+};
+const BLACK_KINGSIDE_CASTLE: ChessMove = ChessMove{
+    piece: Piece::BlackKing,
+    origin: Color::Black.king_starting_square(),
+    target: Color::Black.king_castle_target(CastleType::KingSide),
+    meta_data: MoveData::Castling
+};
+const BLACK_QUEENSIDE_CASTLE: ChessMove = ChessMove{
+    piece: Piece::BlackKing,
+    origin: Color::Black.king_starting_square(),
+    target: Color::Black.king_castle_target(CastleType::KingSide),
+    meta_data: MoveData::Castling
+};
+
+impl PartialEq for Disambiguity {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Disambiguity::None, Disambiguity::None) => true,
+            (Disambiguity::Rank(row1), Disambiguity::Rank(row2)) => row1 == row2,
+            (Disambiguity::File(col1), Disambiguity::File(col2)) => col1 == col2,
+            (Disambiguity::Square(square1), Disambiguity::Square(square2)) => square1 == square2,
+            (_, _) => false,
+        }
+    }
 }
 
 impl ChessMove {
@@ -119,13 +155,142 @@ impl ChessMove {
     /// - `Ok(ChessMove)`: A valid move if all rules are satisfied.
     /// - `Err(MoveError)`: An error if the move is illegal.
     ///
-    fn valid_new(board: &mut Board, piece: Piece, origin: Square, target: Square, is_promotion: bool) -> Result<ChessMove, MoveError> {
+    pub fn valid_new(board: &mut Board, piece: Piece, origin: Square, target: Square, is_promotion: bool) -> Result<ChessMove, MoveError> {
         let move_data = if is_promotion {MoveData::Promotion} else {MoveData::Normal};
         // Initiaizes with normalized `MoveData` and validate_move() will fix it
         let mut chess_move = ChessMove::new(piece, origin, target, move_data);
 
         chess_move.validate_move(board)?;
         Ok(chess_move)
+    }
+    pub fn new_castle(board: &mut Board, castle_type: CastleType) -> Result<ChessMove, MoveError> {
+        let mut castle: ChessMove = match board.active_player {
+            Color::White => if castle_type == CastleType::KingSide { WHITE_KINGSIDE_CASTLE } else { WHITE_QUEENSIDE_CASTLE },
+            Color::Black => if castle_type == CastleType::KingSide { BLACK_KINGSIDE_CASTLE } else { BLACK_QUEENSIDE_CASTLE },
+        };
+
+        castle.validate_move(board)?;
+        Ok(castle)
+    }
+    pub fn new_with_disambiguation(board: &mut Board, piece: Piece, disambiguity: Disambiguity, target: Square, is_promotion: bool) -> Result<ChessMove, MoveError> {
+        let move_data = if is_promotion {MoveData::Promotion} else {MoveData::Normal};
+
+        let square_vec = match disambiguity {
+            Disambiguity::None => {
+                return ChessMove::new_without_disambiguation(board, piece, target, is_promotion);
+            }
+            Disambiguity::Square(square) => {
+                return Self::valid_new(board, piece, square, target, is_promotion);
+            }
+            Disambiguity::File(col) => {
+                board.get_piece_squares_from_bitboard(piece, Bitboard::get_bitboard_from_col(col))
+            }
+            Disambiguity::Rank(row) => {
+                board.get_piece_squares_from_bitboard(piece, Bitboard::get_bitboard_from_row(row))
+            }
+        };
+
+        match square_vec.len() {
+            0 => Err(MoveError::PieceNotFound),
+            1 => {
+                let origin = square_vec[0];
+                let mut chess_move = ChessMove::new(piece, origin, target, move_data);
+
+                chess_move.validate_move(board)?;
+                Ok(chess_move)
+            }
+            _ => Err(MoveError::DisambiguousMove)
+        }
+    }
+    pub fn new_without_disambiguation(board: &mut Board, piece: Piece, target:Square, is_promotion: bool) -> Result<ChessMove, MoveError> {
+        let mut moves: Vec<ChessMove> = Vec::new();
+        let col = target.get_col();
+        let row = target.get_row();
+
+        match piece {
+            Piece::WhitePawn | Piece::BlackPawn => {
+                let row_offset = piece.get_color().get_pawn_direction();
+                if let Some(origin) = Square::valid_new(row + row_offset, col) {
+                    if let Ok(chess_move) = ChessMove::valid_new(board, piece, origin, target, is_promotion) {
+                        moves.push(chess_move);
+                    }
+                }
+                if let Some(origin) = Square::valid_new(row + row_offset, col - 1) {
+                    if let Ok(chess_move) = ChessMove::valid_new(board, piece, origin, target, is_promotion) {
+                        moves.push(chess_move);
+                    }
+                }
+                if let Some(origin) = Square::valid_new(row + row_offset, col + 1) {
+                    if let Ok(chess_move) = ChessMove::valid_new(board, piece, origin, target, is_promotion) {
+                        moves.push(chess_move);
+                    }
+                }
+                if let Some(origin) = Square::valid_new(row + row_offset + row_offset, col) {
+                    if let Ok(chess_move) = ChessMove::valid_new(board, piece, origin, target, is_promotion) {
+                        moves.push(chess_move);
+                    }
+                }
+            }
+            Piece::WhiteKnight | Piece::BlackKnight => {
+                for knight_square in target.iter_knight_offsets() {
+                    if board.is_piece_at(knight_square, piece) {
+                        if let Ok(chess_move) =ChessMove::valid_new(board, piece, knight_square, target, is_promotion) {
+                            moves.push(chess_move);
+                        }
+                    }
+                }
+            }
+            Piece::WhiteBishop | Piece::BlackBishop | Piece::WhiteRook |  Piece::BlackRook |
+            Piece::WhiteQueen | Piece::BlackQueen => {
+                // Check Rank and Files
+                if piece.moves_n_captures_straight() {
+                    for i in 0..=1 {
+                        let ascending:bool = i%2 == 1;
+                        let (_, origin) = board.clear_n_capture_down_rank(target, ascending, board.active_player);
+                        if let Some(origin_square) = origin {
+                            moves.push(ChessMove::new(piece, origin_square, target, MoveData::Capture));
+                        }
+                        let (_, origin) = board.clear_n_capture_down_file(target, ascending, board.active_player);
+                        if let Some(origin_square) = origin {
+                            moves.push(ChessMove::new(piece, origin_square, target, MoveData::Capture));
+                        }
+                    }
+                }
+                // Check Diagonals
+                if piece.captures_diagonally() {
+                    for i in 0..4 {
+                        let ascending = i / 2 == 0;
+                        let ascending_col = i % 2 == 0;
+                        let (_, origin) = board.clear_n_capture_down_diagonal(target, ascending, ascending_col, board.active_player);
+
+                        if let Some(origin_square) = origin {
+                            moves.push(ChessMove::new(piece, origin_square, target, MoveData::Capture));
+                        }
+                    }
+                }
+            }
+            Piece::WhiteKing | Piece::BlackKing => {
+                for king_square in target.iter_king_offsets() {
+                    if board.is_piece_at(king_square, piece) {
+                        if let Ok(chess_move) = ChessMove::valid_new(board, piece, king_square, target, is_promotion) {
+                            moves.push(chess_move);
+                        }
+                    }
+                }
+            }
+        }
+        match moves.len() {
+            0 => Err(MoveError::PieceNotFound),
+            1 => Ok(moves[0]),
+            _ => Err(MoveError::DisambiguousMove)
+        }
+    }
+    pub fn new_from_squares(board: &mut Board, origin: Square, target: Square, is_promotion: bool) -> Result<ChessMove, MoveError> {
+        if let Some(piece) = board.get_piece_at(origin) {
+            ChessMove::valid_new(board, piece, origin, target, is_promotion)
+        } else {
+            Err(MoveError::PieceNotFound)
+        }
     }
 
     fn assemble_special_move(move_type: MoveType, captures: bool, enables_en_passant: bool, result: MoveResult) -> MoveData {
@@ -174,6 +339,8 @@ impl ChessMove {
         //@TODO give own logic
         self.to_long_algebraic()
     }
+
+
 
     fn make_move_on_board(&self, board: &mut Board){
         match self.meta_data.get_move_type() {
@@ -259,7 +426,7 @@ impl ChessMove {
                 MoveType::EnPassant => board.get_piece_at(
                     Square::new(self.origin.get_row(), self.target.get_col())
                 ),
-                _ => !unreachable!()
+                _ => unreachable!()
             }
         } else {
             None
@@ -1019,7 +1186,7 @@ impl Display for ChessMove {
     }
 }
 
-pub fn special_move_builder(move_type: SpecialMoveType, result: MoveResult, captures: bool) -> MoveData {
+fn special_move_builder(move_type: SpecialMoveType, result: MoveResult, captures: bool) -> MoveData {
     match move_type {
         SpecialMoveType::None => build_none_or_promotion(MoveData::Normal, captures, MoveData::Capture, result),
         SpecialMoveType::Promotion => build_none_or_promotion(MoveData::Promotion, captures, MoveData::CapturePromotion, result),
@@ -1063,7 +1230,7 @@ impl MoveData {
                 => MoveType::Promotion,
             MoveData::Castling | MoveData::CastlingCheck | MoveData::CastlingCheckmate | MoveData::CastlingStalemate
                 => MoveType::Castling,
-            MoveData::GeneratedOnly => !unreachable!()
+            MoveData::GeneratedOnly => unreachable!()
         }
     }
     pub fn is_castle(&self) -> bool {
@@ -1157,7 +1324,7 @@ impl MoveData {
             MoveData::EnPassantStalemate | MoveData::EnableEnPassantStalemate |
             MoveData::CaptureStalemate | MoveData::CapturePromotionStalemate =>
                 MoveResult::Stalemate,
-            MoveData::GeneratedOnly | _ => unimplemented!("GeneratedOnly variant not handled for {:?}", self),
+            MoveData::GeneratedOnly => unimplemented!("GeneratedOnly variant not handled for {:?}", self),
         }
     }
 

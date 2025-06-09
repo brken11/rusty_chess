@@ -5,9 +5,7 @@ mod move_parser;
 
 use crate::board::pieces::Piece;
 use board::Board;
-use crate::board::pieces::Color;
 use crate::chess_moves::ChessMove;
-use crate::move_parser::chess_notation_parser;
 
 fn main() {
     let mut b = Board::std_new();

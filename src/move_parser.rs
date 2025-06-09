@@ -1,8 +1,8 @@
 use crate::board::pieces::{Color, Piece};
-use crate::board::{Square, SquareExt};
+use crate::board::{Board, Square, SquareExt};
 use crate::board::square::{Col, ColExt, Row, RowExt};
 use crate::chess_moves::{ChessMove,MoveError,Disambiguity};
-use crate::rules::{MoveResult, MoveType, CastleType::{KingSide, QueenSide}, CastleType};
+use crate::rules::{MoveResult, MoveType, CastleType};
 
 pub const PIECE_MAP: &[(&str, char)] = &[
     // Bishop
@@ -41,6 +41,7 @@ pub enum ParseError{
     MissingOriginError,
     MissingTargetError,
     MissingPromotionPiece,
+    MissingCastleType,
     InvalidSquare(Square),
     UnknownCharacter,
     UnrecognizedCharInMap,
@@ -54,7 +55,7 @@ pub enum ParseError{
 }
 
 #[derive(Debug,Eq, PartialEq, Clone, Copy)]
-enum Token {
+pub enum Token {
     Piece(Piece),       // Pieces 'K', 'Q' etc
     Rank(Row),          // Ranks '1' through '8'
     File(Col),          // Files 'a' through 'h'
@@ -69,19 +70,19 @@ enum Token {
 }
 
 #[derive(Debug,)]
-struct ProtoMove {
-    piece: Option<Piece>,
-    origin: Disambiguity,
-    is_capture: Option<bool>,
-    target: Option<Square>,
-    move_type: MoveType,
-    promotion_piece: Option<Piece>,
-    castle_type: Option<CastleType>,
-    move_result: MoveResult,
+pub struct ProtoMove {
+    pub piece: Option<Piece>,
+    pub origin: Disambiguity,
+    pub is_capture: Option<bool>,
+    pub target: Option<Square>,
+    pub move_type: MoveType,
+    pub promotion_piece: Option<Piece>,
+    pub castle_type: Option<CastleType>,
+    pub move_result: MoveResult,
 }
 
 #[derive(Debug,PartialEq, Eq, PartialOrd, Ord)]
-enum AlgebraicParseStage{
+pub enum AlgebraicParseStage{
     Piece,
     Disambiguation,
     Capture,
@@ -95,7 +96,7 @@ enum AlgebraicParseStage{
 pub(crate) mod chess_notation_parser {
     use super::*;
 
-    pub fn from_simplified_algebraic_notation(string: &str, active_player: Color) -> Result<ChessMove, ParseError>{
+    pub fn from_simplified_algebraic_notation(string: &str, active_player: Color) -> Result<ProtoMove, ParseError>{
         let mut proto_move: ProtoMove = ProtoMove{
             piece : None,
             origin : Disambiguity::None,
@@ -106,7 +107,7 @@ pub(crate) mod chess_notation_parser {
             castle_type: None,
             move_result : MoveResult::None,
         };
-        let mut parse_step = AlgebraicParseStage::Piece;
+        let mut parse_step;// = AlgebraicParseStage::Piece;
         let tokens = tokenize_string(string, SORTED_PIECE_MAP, active_player)?;
         let tokens = pre_process_tokens(&tokens)?;
 
@@ -197,7 +198,7 @@ pub(crate) mod chess_notation_parser {
 
         if parse_step <= AlgebraicParseStage::Capture { match token_iter.peek() {
             None => {
-                return finalize(&mut proto_move);
+                return finalize(proto_move);
             }
             Some(Token::Capture) => {
                 proto_move.is_capture = Some(true);
@@ -229,7 +230,7 @@ pub(crate) mod chess_notation_parser {
 
         if parse_step <= AlgebraicParseStage::Target { match token_iter.peek() {
             None => {
-                return finalize(&mut proto_move);
+                return finalize(proto_move);
             }
             Some(Token::Square(square)) => {
                 match proto_move.target {
@@ -308,8 +309,7 @@ pub(crate) mod chess_notation_parser {
         //@TODO Replace with function call that returns chess_move.
         Err(ParseError::Todo)
     }
-
-    pub fn from_long_algebraic_notation(string: &str, active_player: Color) -> Result<ChessMove, ParseError> {
+    pub fn from_long_algebraic_notation(string: &str, active_player: Color) -> Result<ProtoMove, ParseError> {
         let mut proto_move: ProtoMove = ProtoMove{
             piece : None,
             origin : Disambiguity::None,
@@ -320,7 +320,7 @@ pub(crate) mod chess_notation_parser {
             castle_type: None,
             move_result : MoveResult::None,
         };
-        let mut parse_step = AlgebraicParseStage::Piece;
+        let mut parse_step;// = AlgebraicParseStage::Piece;
         let tokens = tokenize_string(string, SORTED_PIECE_MAP, active_player)?;
         let tokens = pre_process_tokens(&tokens)?;
 
@@ -408,7 +408,7 @@ pub(crate) mod chess_notation_parser {
         }}
 
         if parse_step <= AlgebraicParseStage::Promotion { match token_iter.peek() {
-            None => return finalize(&mut proto_move),
+            None => return finalize(proto_move),
             Some(Token::Promotion(piece) | Token::Piece(piece)) => {
                 proto_move.promotion_piece = Some(*piece);
 
@@ -452,27 +452,78 @@ pub(crate) mod chess_notation_parser {
         Err(ParseError::Todo)
     }
 
+
+
     // pub fn normalize_piece_symbol(symbol: &str) -> Option<char> {
     //     PIECE_MAP.binary_search_by_key(&symbol, |&(key, _)| key)
     //         .ok()
     //         .map(|index| SORTED_PIECE_MAP[index].1)
     // }
 
+    impl ChessMove {
+        pub fn new_from_proto(board: &mut Board, proto_move: ProtoMove) -> Result<ChessMove, ParseError> {
+            // Castle
+            match proto_move.move_type {
+                MoveType::Castling => {
+                    return match proto_move.castle_type {
+                        Some(castle_type) => { match ChessMove::new_castle(board, castle_type) {
+                                Ok(chess_move) => Ok(chess_move),
+                                Err(e) => Err(ParseError::IllegalMoveError(e))
+                        }}
+                        None => Err(ParseError::MissingCastleType)
+                    }
+                }
+                MoveType::Regular | MoveType::Promotion | MoveType::EnPassant => {}
+            }
 
+            let target_square: Square;
+            // Get rid of bad variants
+            if proto_move.piece.is_none() && proto_move.origin == Disambiguity::None{
+                return Err(ParseError::MissingPiece)
+            }
+            if let Some(target) = proto_move.target {
+                target_square = target;
+            } else {
+                return Err(ParseError::MissingTargetError)
+            }
+
+            // If promotion, pass promotion piece
+            if let Some(promotion_piece) = proto_move.promotion_piece {
+                return match if let Disambiguity::Square(origin_square) = proto_move.origin {
+                            ChessMove::valid_new(board, promotion_piece, origin_square, target_square, true)
+                        } else {
+                            ChessMove::new_with_disambiguation(board, promotion_piece, proto_move.origin, target_square, true)
+                        } {
+                    Ok(chess_move) => Ok(chess_move),
+                    Err(e) => Err(ParseError::IllegalMoveError(e))
+                };
+            }
+
+            let result: Result<ChessMove, MoveError> = match (proto_move.piece, proto_move.origin) {
+                (None, Disambiguity::None) => return Err(ParseError::MissingPiece),
+                (Some(piece), origin) => {
+                    ChessMove::new_with_disambiguation(board, piece, origin, target_square, false)
+                }
+                (_, Disambiguity::Square(origin_square)) => {
+                    ChessMove::new_from_squares(board, origin_square, target_square, false)
+                }
+                (None, _) => return Err(ParseError::MissingPiece)
+            };
+            match result {
+                Ok(chess_move) => Ok(chess_move),
+                Err(e) => Err(ParseError::IllegalMoveError(e))
+            }
+        }
+    }
 
 
 }
 
-fn finalize(proto_move: &mut ProtoMove) -> Result<ChessMove, ParseError>{
-    // @TODO
-    match proto_move.target {
-        Some(_) => {
-            //@TODO pass `proto_move` to chess_moves.rs for validation
-            Err(ParseError::Todo)
-        }
-        None => {
-            Err(ParseError::MissingTargetError)
-        }
+fn finalize(proto_move: ProtoMove) -> Result<ProtoMove, ParseError>{
+    if proto_move.target.is_some() {
+        Ok(proto_move)
+    } else {
+        Err(ParseError::MissingTargetError)
     }
 }
 
@@ -532,9 +583,9 @@ fn tokenize_string(string: &str, map:&[(char, char)], color: Color) -> Result<Ve
                         // O-O-O
                         if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'O') {
                             chars.next();
-                            tokens.push(Token::Castle(QueenSide));
+                            tokens.push(Token::Castle(CastleType::QueenSide));
                         }} else {
-                            tokens.push(Token::Castle(KingSide));
+                            tokens.push(Token::Castle(CastleType::KingSide));
                         }
                     }}
                 }
@@ -545,9 +596,9 @@ fn tokenize_string(string: &str, map:&[(char, char)], color: Color) -> Result<Ve
                         // 0-0-0
                         if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'0') {
                             chars.next();
-                            tokens.push(Token::Castle(QueenSide));
+                            tokens.push(Token::Castle(CastleType::QueenSide));
                         }} else {
-                            tokens.push(Token::Castle(KingSide));
+                            tokens.push(Token::Castle(CastleType::KingSide));
                         }
                     }}
                 }
@@ -600,7 +651,7 @@ fn pre_process_tokens(tokens: &Vec<Token>) -> Result<Vec<Token>, ParseError>{
     Ok(processed_tokens)
 }
 
-fn analyze_token_vec(tokens: Vec<Token>) -> () {
+/*fn analyze_token_vec(tokens: Vec<Token>) -> () {
     let mut square_count = 0;
     let mut piece_count = 0;
     let mut file_count = 0;
@@ -621,7 +672,7 @@ fn analyze_token_vec(tokens: Vec<Token>) -> () {
             _ => {}
         }
     }
-}
+}*/
 
 // fn normalize_piece(piece_slice: &mut str, piz) -> Result<Piece, ParseError> {
 //
@@ -680,7 +731,7 @@ mod tests {
         // Test kingside castling using letter "O"
         let tokens = tokenize_string("O-O", TEST_MAP, Color::Black).unwrap();
         assert_eq!(tokens, vec![
-            Token::Castle(KingSide)
+            Token::Castle(CastleType::KingSide)
         ]);
     }
 
@@ -689,7 +740,7 @@ mod tests {
         // Test queenside castling using letter "O"
         let tokens = tokenize_string("O-O-O", TEST_MAP, Color::White).unwrap();
         assert_eq!(tokens, vec![
-            Token::Castle(QueenSide)
+            Token::Castle(CastleType::QueenSide)
         ]);
     }
 
@@ -698,7 +749,7 @@ mod tests {
         // Test kingside castling using zero "0"
         let tokens = tokenize_string("0-0", TEST_MAP, Color::White).unwrap();
         assert_eq!(tokens, vec![
-            Token::Castle(KingSide)
+            Token::Castle(CastleType::KingSide)
         ]);
     }
 
@@ -707,7 +758,7 @@ mod tests {
         // Test queenside castling using zero "0"
         let tokens = tokenize_string("0-0-0", TEST_MAP, Color::Black).unwrap();
         assert_eq!(tokens, vec![
-            Token::Castle(QueenSide)
+            Token::Castle(CastleType::QueenSide)
         ]);
     }
 

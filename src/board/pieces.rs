@@ -1,3 +1,5 @@
+use crate::board::Square;
+use crate::rules::CastleType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
@@ -125,6 +127,36 @@ impl Piece {
         }
     }
 
+    pub fn moves_diagonally(&self) -> bool {
+        match self{
+            Piece::WhiteBishop | Piece::BlackBishop | Piece::WhiteQueen | Piece::BlackQueen |
+            Piece::WhiteKing | Piece::BlackKing =>
+                true,
+            Piece::WhitePawn | Piece::BlackPawn | Piece::WhiteKnight | Piece::BlackKnight |
+            Piece::WhiteRook | Piece::BlackRook =>
+                false,
+        }
+    }
+    pub fn captures_diagonally(&self) -> bool {
+        match self{
+            Piece::WhiteBishop | Piece::BlackBishop | Piece::WhiteQueen | Piece::BlackQueen |
+            Piece::WhiteKing | Piece::BlackKing | Piece::WhitePawn | Piece::BlackPawn =>
+                true,
+            Piece::WhiteKnight | Piece::BlackKnight | Piece::WhiteRook | Piece::BlackRook =>
+                false,
+        }
+    }
+    pub fn moves_n_captures_straight(&self) -> bool {
+        match self {
+            Piece::WhiteKing | Piece::BlackKing | Piece::WhiteQueen | Piece::BlackQueen |
+            Piece::WhiteRook | Piece::BlackRook =>
+                true,
+            Piece::WhiteKnight | Piece::BlackKnight | Piece::WhitePawn | Piece::BlackPawn |
+            Piece::WhiteBishop | Piece::BlackBishop =>
+                false,
+        }
+    }
+
     /// A method that returns whether the given piece can be promoted *into* or not.
     ///
     /// # Returns
@@ -178,19 +210,19 @@ impl Piece {
 }
 
 impl Color {
-    pub fn toggle_color(&self) -> Color {
+    pub const fn toggle_color(&self) -> Color {
         match self {
             Color::White => Color::Black,
             Color::Black => Color::White,
         }
     }
-    pub fn get_pawn(&self) -> Piece {
+    pub const fn get_pawn(&self) -> Piece {
         match self {
             Color::White => Piece::WhitePawn,
             Color::Black => Piece::BlackPawn,
         }
     }
-    pub fn get_pawn_direction(&self) -> u8 {
+    pub const fn get_pawn_direction(&self) -> u8 {
         /* Note, this is set to 8 as to make adding or 'subtracting' from base square to be
          * as simple as possible for pawn calculating the pawns destination square.
          */
@@ -199,64 +231,82 @@ impl Color {
             Color::Black => 8,
         }
     }
-    pub fn is_pawn_ascending(&self) -> bool {
+    pub const fn get_pawn_row_offset(&self) -> u8 {
+        match self{
+            Color::White => 255, // -1 for u8s
+            Color::Black => 1,
+        }
+    }
+    pub const fn is_pawn_ascending(&self) -> bool {
         match self {
             Color::White => false,
             Color::Black => true,
         }
     }
-    pub fn get_back_rank_row(&self) -> u8 {
+    pub const fn get_back_rank_row(&self) -> u8 {
         match self {
             Color::White => 7,
             Color::Black => 0,
         }
     }
-    pub fn get_pawn_starting_row(&self) -> u8 {
+    pub const fn get_pawn_starting_row(&self) -> u8 {
         match self{
             Color::White => 6,
             Color::Black => 2,
         }
     }
-    pub fn get_pawn_promotion_row(&self) -> u8 {
+    pub const fn get_pawn_promotion_row(&self) -> u8 {
         match self{
             Color::White => 0,
             Color::Black => 7,
         }
     }
-    pub fn get_promotion_pieces(&self) -> [Piece; 4] {
+    pub const fn get_promotion_pieces(&self) -> [Piece; 4] {
         match self {
             Color::White => [Piece::WhiteQueen, Piece::WhiteKnight, Piece::WhiteBishop, Piece::WhiteRook],
             Color::Black => [Piece::BlackQueen, Piece::BlackKnight, Piece::BlackBishop, Piece::BlackRook],
         }
     }
-    pub fn get_rook(&self) -> Piece {
+    pub const fn get_rook(&self) -> Piece {
         match self {
             Color::White => Piece::WhiteRook,
             Color::Black => Piece::BlackRook,
         }
     }
-    pub fn get_knight(&self) -> Piece {
+    pub const fn get_knight(&self) -> Piece {
         match self {
             Color::White => Piece::WhiteKnight,
             Color::Black => Piece::BlackKnight,
         }
     }
-    pub fn get_bishop(&self) -> Piece {
+    pub const fn get_bishop(&self) -> Piece {
         match self {
             Color::White => Piece::WhiteBishop,
             Color::Black => Piece::BlackBishop,
         }
     }
-    pub fn get_queen(&self) -> Piece {
+    pub const fn get_queen(&self) -> Piece {
         match self {
             Color::White => Piece::WhiteQueen,
             Color::Black => Piece::BlackQueen,
         }
     }
-    pub fn get_king(&self) -> Piece {
+    pub const fn get_king(&self) -> Piece {
         match self {
             Color::White => Piece::WhiteKing,
             Color::Black => Piece::BlackKing,
+        }
+    }
+    pub const fn king_starting_square(&self) -> Square {
+        match self {
+            Color::White => 60,
+            Color::Black => 4,
+        }
+    }
+    pub const fn king_castle_target(&self, castle_type: CastleType) -> Square {
+        match self {
+            Color::White => match castle_type {CastleType::KingSide => 62, CastleType::QueenSide => 58},
+            Color::Black => match castle_type {CastleType::KingSide => 6, CastleType::QueenSide => 2},
         }
     }
 }
