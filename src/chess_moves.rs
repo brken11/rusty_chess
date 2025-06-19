@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt;
 use std::fmt::Display;
 use crate::rules;
@@ -66,7 +67,7 @@ pub enum MoveError{
     LeavesKingInCheck,
     PieceNotFound,
     ObstructedMove,
-    DisambiguousMove,
+    DisambiguousMove(Disambiguity),// Disambiguity should match the type of disambiguation that would be needed
     IllegalMove,
     ParsingError,
     CastleNotPermmited,
@@ -82,7 +83,7 @@ pub enum Disambiguity {
     Square(Square),
 }
 
-#[derive(Debug,Copy,Clone)]
+#[derive(Debug,Clone)]
 pub struct ChessMove {
     piece: Piece,
     origin: Square,
@@ -172,6 +173,37 @@ impl ChessMove {
         castle.validate_move(board)?;
         Ok(castle)
     }
+    
+    #[inline]
+    pub fn disambiguate_from_squares(possible_origins: &Vec<Square>) -> Disambiguity {
+        if possible_origins.len() <= 1 {return Disambiguity::None}// 0 doesn't make sense, but neither does passing an empty vector
+        
+        let mut rows: HashSet<Row> = HashSet::new();
+        let mut cols: HashSet<Col> = HashSet::new();
+        let mut disambiguation_need: Disambiguity = Disambiguity::None;
+        
+        for origin in possible_origins {
+            let row: Row = origin.get_row();
+            let col: Col = origin.get_col();
+
+            if ! cols.insert(col)  { // If col is present, row disambiguation is needed
+                if disambiguation_need == Disambiguity::None {
+                    disambiguation_need = Disambiguity::Rank(row);
+                } else { // If both row and col are present, square disambiguation is needed
+                    return Disambiguity::Square(*origin);
+                }
+            }
+            if ! rows.insert(row) { // If row is present, col disambiguation is needed
+                if disambiguation_need == Disambiguity::None {
+                    disambiguation_need = Disambiguity::File(col);
+                } else { // If both row and col are present, square disambiguation is needed
+                    return Disambiguity::Square(*origin);
+                }
+            }
+        }
+        
+        disambiguation_need
+    }
     pub fn new_with_disambiguation(board: &mut Board, piece: Piece, disambiguity: Disambiguity, target: Square, is_promotion: bool) -> Result<ChessMove, MoveError> {
         let move_data = if is_promotion {MoveData::Promotion} else {MoveData::Normal};
 
@@ -199,8 +231,38 @@ impl ChessMove {
                 chess_move.validate_move(board)?;
                 Ok(chess_move)
             }
-            _ => Err(MoveError::DisambiguousMove)
+            _ => Err(MoveError::DisambiguousMove(Self::disambiguate_from_squares(&square_vec)))
         }
+    }
+    #[inline]
+    pub fn disambiguate_from_moves(possible_moves: &Vec<ChessMove>) -> Disambiguity {
+        if possible_moves.len() <= 1 {return Disambiguity::None}// 0 doesn't make sense, but neither does passing an empty vector
+        
+        let mut rows: HashSet<Row> = HashSet::new();
+        let mut cols: HashSet<Col> = HashSet::new();
+        let mut disambiguation_need: Disambiguity = Disambiguity::None;
+        
+        for chess_move in possible_moves {
+            let col = chess_move.origin.get_col();
+            let row = chess_move.origin.get_row();
+
+            if ! cols.insert(col)  { // If col is present, row disambiguation is needed
+                if disambiguation_need == Disambiguity::None {
+                    disambiguation_need = Disambiguity::Rank(row);
+                } else { // If both row and col are present, square disambiguation is needed
+                    return Disambiguity::Square(chess_move.origin);
+                }
+            }
+            if ! rows.insert(row) { // If row is present, col disambiguation is needed
+                if disambiguation_need == Disambiguity::None {
+                    disambiguation_need = Disambiguity::File(col);
+                } else { // If both row and col are present, square disambiguation is needed
+                    return Disambiguity::Square(chess_move.origin);
+                }
+            }
+        }
+        
+        disambiguation_need
     }
     pub fn new_without_disambiguation(board: &mut Board, piece: Piece, target:Square, is_promotion: bool) -> Result<ChessMove, MoveError> {
         let mut moves: Vec<ChessMove> = Vec::new();
@@ -287,8 +349,8 @@ impl ChessMove {
         }
         match moves.len() {
             0 => Err(MoveError::PieceNotFound),
-            1 => Ok(moves[0]),
-            _ => Err(MoveError::DisambiguousMove)
+            1 => Ok(moves[0].clone()),
+            _ => Err(MoveError::DisambiguousMove(Self::disambiguate_from_moves(&moves)))
         }
     }
     pub fn new_from_squares(board: &mut Board, origin: Square, target: Square, is_promotion: bool) -> Result<ChessMove, MoveError> {

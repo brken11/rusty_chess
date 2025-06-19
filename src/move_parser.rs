@@ -54,6 +54,61 @@ pub enum ParseError{
     Todo,
 }
 
+/// Represents a token used in chess notation parsing.
+///
+/// This enum captures various elements that can be part of a chess move
+/// or notation string, such as pieces, squares, symbols for special moves,
+/// or game states. Each variant corresponds to a specific token type.
+///
+/// # Variants
+///
+/// - `Piece(Piece)`:
+///   Represents a chess piece (e.g., 'K', 'Q', etc.).
+///
+/// - `Rank(Row)`:
+///   Represents a rank on the chessboard ('1' through '8').
+///
+/// - `File(Col)`:
+///   Represents a file on the chessboard ('a' through 'h').
+///
+/// - `Square(Square)`:
+///   Denotes a specific square on the chessboard (e.g., 'a1', 'c3', 'h8').
+///
+/// - `Capture`:
+///   Symbolizes a capture move ('x').
+///
+/// - `Separator`:
+///   Represents a movement separator, such as '-' or '>'.
+///
+/// - `Check`:
+///   Indicates a check ('+') in the game status.
+///
+/// - `Checkmate`:
+///   Indicates a checkmate ('#') in the game status.
+///
+/// - `Stalemate`:
+///   Represents a stalemate symbol ('‡') in the game status.
+///
+/// - `Promotion(Piece)`:
+///   Denotes a pawn promotion, specifying the promoted piece (e.g., '=N', '=Q').
+///
+/// - `Castle(CastleType)`:
+///   Represents a castling move, differentiating between kingside ("O-O") 
+///   and queenside ("O-O-O") castling.
+///
+/// # Examples
+///
+/// ```rust
+/// use crate::Token;
+///
+/// let token_piece = Token::Piece(Piece::King);
+/// let token_rank = Token::Rank(Row::Seven);
+/// let token_capture = Token::Capture;
+/// let token_castle = Token::Castle(CastleType::Kingside);
+///
+/// println!("{:?}", token_piece); // Outputs: Piece(King)
+/// println!("{:?}", token_castle); // Outputs: Castle(Kingside)
+/// ```
 #[derive(Debug,Eq, PartialEq, Clone, Copy)]
 pub enum Token {
     Piece(Piece),       // Pieces 'K', 'Q' etc
@@ -142,6 +197,10 @@ pub(crate) mod chess_notation_parser {
             }
             Some(Token::Square(square)) => {
                 proto_move.piece = Some(active_player.get_pawn());
+                // Seems dumb to set this value to the target field. However, if the only square is
+                // provided using **Simplified Algebraic Notation**, it must be assumed it is the
+                // target square and not the origin square, so until a second one shows up,
+                // we assume it's the target.
                 proto_move.target = Some(*square);
 
                 token_iter.next();
@@ -178,9 +237,9 @@ pub(crate) mod chess_notation_parser {
                 parse_step = AlgebraicParseStage::Capture;
             }
             Some(Token::Square(square)) => {
-                // Seems dumb to set this value to target, but if the only square is provided
-                // using **Simplified Algebraic Notation**, it must be assumed it is the target
-                // square and not the origin square, so until a second one shows up,
+                // Seems dumb to set this value to the target field. However, if the only square is
+                // provided using **Simplified Algebraic Notation**, it must be assumed it is the
+                // target square and not the origin square, so until a second one shows up,
                 // we assume it's the target.
                 proto_move.target = Some(*square);
 
@@ -217,6 +276,10 @@ pub(crate) mod chess_notation_parser {
                 parse_step = AlgebraicParseStage::Target;
             }
             Some(Token::Square(_)) => {
+                // Seems dumb to set this value to the target field. However, if the only square is
+                // provided using **Simplified Algebraic Notation**, it must be assumed it is the
+                // target square and not the origin square, so until a second one shows up,
+                // we assume it's the target.
                 parse_step = AlgebraicParseStage::Target;
             }
             Some(Token::Promotion(_)) => {
@@ -450,15 +513,7 @@ pub(crate) mod chess_notation_parser {
 
         finalize(proto_move)
     }
-
-
-
-    // pub fn normalize_piece_symbol(symbol: &str) -> Option<char> {
-    //     PIECE_MAP.binary_search_by_key(&symbol, |&(key, _)| key)
-    //         .ok()
-    //         .map(|index| SORTED_PIECE_MAP[index].1)
-    // }
-
+    
     impl ChessMove {
         pub fn new_from_proto(board: &mut Board, proto_move: ProtoMove) -> Result<ChessMove, ParseError> {
             // Castle
@@ -532,6 +587,84 @@ fn finalize(proto_move: ProtoMove) -> Result<ProtoMove, ParseError>{
     }
 }
 
+/// Tokenizes a given string into chess notation tokens based on a provided character mapping
+/// and color context.
+///
+/// This function transforms a string representation of chess moves or board states into
+/// a list of tokens that represent chess pieces, squares, moves, or chess-specific symbols.
+/// It uses a character mapping (`map`) to map input characters to the corresponding chess
+/// entities, while also considering the color context (`color`) to distinguish between black
+/// and white pieces or promotions.
+///
+/// # Arguments
+///
+/// * `string` - A string slice containing the input to tokenize. Usually represents
+/// a chess move or notation (e.g., `e4`, `Nxf6`, `O-O`, etc.).
+/// * `map` - An array of tuples providing a mapping of input characters to their interpreted
+/// roles or chess-specific symbols in the tokenization process.
+/// * `color` - A `Color` enum representing the perspective of the chess pieces (e.g., `Color::White`
+/// or `Color::Black`), used to determine the piece's color context.
+///
+/// # Returns
+///
+/// Returns a `Result`:
+/// * `Ok(Vec<Token>)` - A vector of `Token` objects representing valid chess elements.
+/// * `Err(ParseError)` - An error if the input string contains invalid or poorly structured
+/// chess notation.
+///
+/// # `Token` Variants
+/// The resulting tokens could include, but are not limited to:
+/// * Chess pieces (e.g., `Piece::WhiteKing`, `Piece::BlackPawn`).
+/// * Board ranks (`Token::Rank`) or files (`Token::File`).
+/// * Specific moves or game states like `Token::Capture`, `Token::Check`, `Token::Promotion`, 
+/// or `Token::Castle`.
+/// * Symbols like `Token::Separator` (`-` or `>`), `Token::Checkmate` (`#`),
+/// and `Token::Stalemate` (`‡`).
+///
+/// # Errors
+///
+/// The function may return `ParseError` in certain cases:
+/// * `ParseError::UnknownCharacter` - When encountering a character not present in the mapping.
+/// * `ParseError::UnrecognizedCharInMap` - When mapped characters do not match expected tokens.
+/// * `ParseError::MalformedCastle` - When the string includes an invalid castling notation.
+///
+/// # Examples
+///
+/// ```
+/// # use crate::{tokenize_string, Token, Color};
+/// let input = "e4 Nxe5 O-O";
+/// let map = [('K', 'K'), ('Q', 'Q'), ('B', 'B'), ('N', 'N'), ('R', 'R'), ('P', 'P'),
+///            ('e', 'e'), ('4', '4'), ('x', 'x'), ('O', 'O'), ('-', '-'), ('#', '#')];
+/// let color = Color::White;
+///
+/// let tokens = tokenize_string(input, &map, color);
+/// assert!(tokens.is_ok());
+/// ```
+///
+/// # Notes
+///
+/// * This implementation assumes the input string adheres to standard chess notation.
+/// * The code currently includes commented-out code blocks for handling more advanced
+/// parsing scenarios (e.g., additional input validation or specific file-rank structures).
+/// * The function processes both symbolic (`K` for King, etc.) and numeric components (`1`..`8`
+/// for ranks) of chess notation.
+///
+/// # Limitations
+///
+/// * The function uses binary search for efficiency, so the provided character map
+/// must be ***sorted***!
+/// * Castling (`O-O` or `0-0-0`), requires careful
+/// handling of input and consumes multiple characters from the input string.
+///
+/// # See Also
+///
+/// * `Token` - The enumeration representing parsed chess entities.
+/// * `ParseError` - The enumeration representing potential parsing errors.
+///
+/// # Dependencies
+///
+/// Ensure that the `Color`, `Token`, `Piece`, `Row`, `Col`, `Square`, and `CastleType`
+/// enums are implemented in the appropriate namespace for this function.
 fn tokenize_string(string: &str, map:&[(char, char)], color: Color) -> Result<Vec<Token>, ParseError>{
     let mut tokens: Vec<Token> = Vec::with_capacity(string.len());
     let mut chars = string.chars().peekable();
@@ -551,20 +684,6 @@ fn tokenize_string(string: &str, map:&[(char, char)], color: Color) -> Result<Ve
                 'P' => tokens.push(Token::Piece(if color == Color::White {Piece::WhitePawn} else {Piece::BlackPawn})),
                 // File
                 'a'..='h' | 'A'..='H' => {
-                    /*if let Some(next_char) = chars.next() { match next_char {
-                    //File followed by Rank is a Square
-                    '1'..='8' => {
-                        chars.next(); // Consume '1'-'8'
-                        tokens.push(
-                            Token::Square(
-                                Square::new(Row::from_rank(c as u8 - '0' as u8),Col::from_file(next_char))
-                            )
-                        );
-                        continue;
-                    }
-                    //Just File, fall through and add File
-                    _ => {}
-                    }}*/
                     tokens.push(Token::File(Col::from_file(c)))
                 },
                 '1'..='8' => {tokens.push(Token::Rank(Row::from_rank(c as u8 - '0' as u8)))},
@@ -582,30 +701,42 @@ fn tokenize_string(string: &str, map:&[(char, char)], color: Color) -> Result<Ve
                 '=' => tokens.push(Token::Promotion(if color == Color::White {Piece::WhitePawn} else {Piece::BlackPawn})),
                 // Castling
                 'O' => {
-                    // O-O
-                    if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'O') {
-                        chars.next();
-                        // O-O-O
-                        if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'O') {
-                            chars.next();
-                            tokens.push(Token::Castle(CastleType::QueenSide));
-                        }} else {
-                            tokens.push(Token::Castle(CastleType::KingSide));
+                    if (chars.next() != Some('-')) | (chars.next() != Some('O')) { //O-O required for valid castle token
+                        return Err(ParseError::MalformedCastle)
+                    }
+                    
+                    match chars.peek() {
+                        Some(&'-') => {chars.next();} //O-O-
+                        Some(&'O' | &'0') => return Err(ParseError::MalformedCastle), //O-OO/0-00
+                        Some(_) | None => {
+                            tokens.push(Token::Castle(CastleType::KingSide)); //O-O*
+                            continue
                         }
-                    }}
+                    }
+                    
+                    if chars.next() != Some('O') {
+                        return Err(ParseError::MalformedCastle) //O-O-*
+                    }
+                    tokens.push(Token::Castle(CastleType::QueenSide)); //O-O-O
                 }
                 '0' => {
-                    // 0-0
-                    if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'0') {
-                        chars.next();
-                        // 0-0-0
-                        if chars.peek() == Some(&'-') { chars.next(); if chars.peek() == Some(&'0') {
-                            chars.next();
-                            tokens.push(Token::Castle(CastleType::QueenSide));
-                        }} else {
-                            tokens.push(Token::Castle(CastleType::KingSide));
+                    if (chars.next() != Some('-')) | (chars.next() != Some('0')) { //0-0 required for valid castle token
+                        return Err(ParseError::MalformedCastle)
+                    }
+
+                    match chars.peek() {
+                        Some(&'-') => {chars.next();} //0-0-
+                        Some(&'O' | &'0') => return Err(ParseError::MalformedCastle), //0-0O/0-00
+                        Some(_) | None => {
+                            tokens.push(Token::Castle(CastleType::KingSide)); //0-0*
+                            continue
                         }
-                    }}
+                    }
+
+                    if chars.next() != Some('0') {
+                        return Err(ParseError::MalformedCastle) //0-0-*
+                    }
+                    tokens.push(Token::Castle(CastleType::QueenSide)); //0-0-0
                 }
                 _ => return Err(ParseError::UnrecognizedCharInMap)
             }

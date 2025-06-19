@@ -51,8 +51,8 @@ impl CastlingRightsExt for CastlingRights {
             false => CastlingRights::QUEENSIDE_MASK,
         };
         match color{
-            Color::White => (self & mask & CastlingRights::WHITE_KING_MASK) > 0,
-            Color::Black => (self & mask & CastlingRights::BLACK_KING_MASK) > 0
+            Color::White => (self & mask & CastlingRights::WHITE_KING_MASK) != 0,
+            Color::Black => (self & mask & CastlingRights::BLACK_KING_MASK) != 0
         }
     }
     #[inline]
@@ -107,7 +107,7 @@ impl BitboardExt for Bitboard {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 /// Represents a chess board with pieces, castling rights, en passant state,
 /// move counters, and the active player.
 pub struct Board {
@@ -336,9 +336,13 @@ impl Board {
     ///
     /// `Some(Square)` if found, otherwise `None`.
     pub fn king_square_by_color(&self, color: Color) -> Option<Square> {
-        match color {
+        match match color {
             Color::White => Some(self.data[Piece::WhiteKing as usize].trailing_zeros() as Square),
             Color::Black => Some(self.data[Piece::BlackKing as usize].trailing_zeros() as Square)
+        } {
+            Some(Square::MAX) => None,
+            Some(square) => Some(square),
+            None => None
         }
     }
 
