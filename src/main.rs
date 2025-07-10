@@ -2,6 +2,11 @@ mod board;
 mod chess_moves;
 mod rules;
 mod move_parser;
+mod game;
+mod ai;
+mod clock;
+mod chess_bot;
+mod handler;
 
 use crate::board::pieces::Piece;
 use board::Board;
