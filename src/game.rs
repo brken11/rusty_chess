@@ -4,7 +4,7 @@ use crate::rules::{GameState, TimeControls, Timer};
 use crate::clock::ChessClock;
 // use crate::ai::ChessAI;
 
-use std::thread::spawn;
+use std::thread;
 use std::sync::Mutex;
 use std::time::Instant;
 // pub trait AIBehavior {
