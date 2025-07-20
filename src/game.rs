@@ -1,11 +1,13 @@
+use crate::rules;
 use crate::board::Board;
-use crate::chess_moves::ChessMove;
+use crate::chess_moves::{ChessMove, MoveError};
 use crate::rules::{GameState, TimeControls, Timer};
 use crate::clock::ChessClock;
+use crate::common::ThreadId;
 // use crate::ai::ChessAI;
 
 use std::thread;
-use std::sync::Mutex;
+use std::sync::mpsc::{Receiver,Sender};
 use std::time::Instant;
 // pub trait AIBehavior {
 //     fn make_move(&self, board: &Board) -> Result<ChessMove, AIError>;
@@ -59,7 +61,29 @@ pub struct Game{
     black: PlayerType,
     game_state: GameState,
     clock: Option<ChessClock>,
+}
+
+pub type FullMoveNumber = rules::FullMoveNumber;
+
+pub struct GameThread{
+    game : Game,
+    thread_identifier: ThreadIdentifier,
+    player_1_in : Receiver<GameMessage>,
+    player_1_out : Sender<GameResponse>,
+    player_2_in : Receiver<GameMessage>,
+    player_2_out : Sender<GameResponse>,
     move_history: Vec<ChessMove>,
+}
+
+pub enum GameMessage {
+    MakeMove(ChessMove, FullMoveNumber),
+    SetPremove(ChessMove, FullMoveNumber),
+}
+pub enum GameResponse {
+    Sync(Game),
+    SyncClock(ChessClock),
+    SyncMoveHistory(Vec<ChessMove>),
+    IllegalMove(MoveError),
 }
 
 impl Game{
@@ -70,7 +94,6 @@ impl Game{
             black,
             game_state: GameState::Running,
             clock: None,
-            move_history: Vec::new(),
         }
     }
     pub fn new_with_time_controls(white: PlayerType, black: PlayerType, time_controls: TimeControls) -> Option<Game> {
@@ -87,9 +110,38 @@ impl Game{
             move_history: Vec::new(),
         })
     }
-    pub fn start(&mut self) {
+}
+
+impl GameThread {
+    ///
+    ///
+    ///
+    ///
+    ///
+    ///
+    pub fn new() -> GameThread {
+        GameThread{
+            move_history: Vec::new(),
+        }
+    }
+    ///
+    ///
+    ///
+    ///
+    ///
+    ///
+    pub fn start(mut self) -> Self {
         if let Some(clock) = &mut self.clock {
             clock.start();
+        }
+
+        self.run();
+
+        self
+    }
+    fn run(&mut self) {
+        loop {
+
         }
     }
 }

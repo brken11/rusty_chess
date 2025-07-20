@@ -1,8 +1,9 @@
+use crate::rules;
 
 /// A square on the chessboard represented as a value between 0 and 63.
-pub type Square = u8;
-pub type Row = u8;
-pub type Col = u8;
+pub type Square = rules::Square;
+pub type Row = rules::Row;
+pub type Col = rules::Col;
 
 /// Provides extended functionality for chess board squares.
 pub trait SquareExt {

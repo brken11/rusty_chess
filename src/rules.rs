@@ -1,6 +1,23 @@
 use std::time::{Duration, Instant};
 use crate::board::Color;
 
+/// # System Types
+///
+/// A number of types are used within the program that must be standardized. 
+/// In order to make sure that all type aliases remain easy to manage and edit.
+/// All type aliases not fully encapsulated and needed for intermodule
+/// communication will be defined here.
+///
+
+/// # Type alias of a Square
+pub type Square = u8;
+/// # Type alias of a Column
+pub type Col = u8;
+/// # Type alias of a Row
+pub type Row = u8;
+/// # Type alias of Full Move Number
+pub type FullMoveNumber = u8;
+
 /// Describes the status of the Chess game
 pub enum GameState {
     /// The game is in progress
