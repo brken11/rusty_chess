@@ -20,12 +20,26 @@ pub type FullMoveNumber = u8;
 
 /// Describes the status of the Chess game
 pub enum GameState {
+    /// Uninitialized game
+    Start,
     /// The game is in progress
     Running,
     /// A player has been checkmated.
     Checkmate,
     /// The game has ended in a draw
     Draw,
+}
+
+impl PartialEq for GameState {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (GameState::Start, GameState::Start) => true,
+            (GameState::Running, GameState::Running) => true,
+            (GameState::Checkmate, GameState::Checkmate) => true,
+            (GameState::Draw, GameState::Draw) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]

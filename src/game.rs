@@ -1,14 +1,16 @@
+use std::cmp::PartialEq;
 use crate::rules;
 use crate::board::Board;
 use crate::chess_moves::{ChessMove, MoveError};
 use crate::rules::{GameState, TimeControls, Timer};
 use crate::clock::ChessClock;
-use crate::common::ThreadId;
+use crate::common::{ThreadIdHash, ThreadIdHashExt, ThreadIdentifier};
 // use crate::ai::ChessAI;
 
 use std::thread;
 use std::sync::mpsc::{Receiver,Sender};
 use std::time::Instant;
+use crate::handler::PlayerHandler;
 // pub trait AIBehavior {
 //     fn make_move(&self, board: &Board) -> Result<ChessMove, AIError>;
 // }
@@ -35,6 +37,8 @@ use std::time::Instant;
 ///     A bot player or API-based player, capable of automated gameplay.
 ///     The `ChessBot` parameter provides additional details or configuration
 ///     about the bot.
+
+#[derive(Debug, Clone, Copy)]
 pub enum PlayerType{
     /// Human player playing locally
     LocalHuman,
@@ -68,14 +72,16 @@ pub type FullMoveNumber = rules::FullMoveNumber;
 pub struct GameThread{
     game : Game,
     thread_identifier: ThreadIdentifier,
-    player_1_in : Receiver<GameMessage>,
-    player_1_out : Sender<GameResponse>,
-    player_2_in : Receiver<GameMessage>,
-    player_2_out : Sender<GameResponse>,
+    player_1_handler: Option<PlayerHandler>,
+    player_2_handler: Option<PlayerHandler>,
+    ui_in : Receiver<GameController>,
     move_history: Vec<ChessMove>,
 }
 
 pub enum GameMessage {
+    RequestSync,
+    RequestSyncClock,
+    RequestSyncMoveHistory,
     MakeMove(ChessMove, FullMoveNumber),
     SetPremove(ChessMove, FullMoveNumber),
 }
@@ -84,6 +90,12 @@ pub enum GameResponse {
     SyncClock(ChessClock),
     SyncMoveHistory(Vec<ChessMove>),
     IllegalMove(MoveError),
+}
+
+pub enum GameController {
+    StartGame,
+    StopGame,
+    AbortThread,
 }
 
 impl Game{
@@ -107,8 +119,15 @@ impl Game{
             black,
             game_state: GameState::Running,
             clock,
-            move_history: Vec::new(),
         })
+    }
+    fn start_game(&mut self) {
+        if self.game_state == GameState::Start {
+            if let Some(clock) = &mut self.clock {
+                clock.start();
+            }
+            self.game_state = GameState::Running;
+        }
     }
 }
 
@@ -119,10 +138,28 @@ impl GameThread {
     ///
     ///
     ///
-    pub fn new() -> GameThread {
-        GameThread{
-            move_history: Vec::new(),
-        }
+    pub fn new(game: Game) -> (GameThread, Sender<GameController>) {
+        let thread_identifier = ThreadIdentifier::Game(ThreadIdHash::new());
+        // let (player_1_in_sender, player_1_in_receiver) = std::sync::mpsc::channel();
+        // let (player_2_in_sender, player_2_in_receiver) = std::sync::mpsc::channel();
+        // let (player_1_out_sender, player_1_out_receiver) = std::sync::mpsc::channel();
+        // let (player_2_out_sender, player_2_out_receiver) = std::sync::mpsc::channel();
+        let (ui_out, ui_in) = std::sync::mpsc::channel();
+
+        // let player_1_handler = PlayerHandler::new(game.white, player_1_in_sender, player_1_out_receiver);
+        // let player_2_handler = PlayerHandler::new(game.black, player_2_in_sender, player_2_out_receiver);
+
+        (
+            GameThread {
+                thread_identifier,
+                game,
+                player_1_handler: None,
+                player_2_handler: None,
+                ui_in,
+                move_history: Vec::new(),
+            }
+            , ui_out
+        )
     }
     ///
     ///
@@ -131,9 +168,7 @@ impl GameThread {
     ///
     ///
     pub fn start(mut self) -> Self {
-        if let Some(clock) = &mut self.clock {
-            clock.start();
-        }
+        self.game.start_game();
 
         self.run();
 

@@ -9,6 +9,7 @@ mod chess_bot;
 mod handler;
 mod log;
 mod common;
+mod ui;
 
 use std::thread;
 use crate::board::pieces::Piece;
