@@ -120,7 +120,34 @@ pub struct Board {
     pub active_player: Color,
 }
 
+// Template symbols ┏┓╄┗┺┩┛╏╍╌╎└┘┲
+///
+/// ## Border Template
+///
+/// const for `Board::to_string`
+///
+/// Assumes 8 * 8 matrix due to macro/const_fn limitations
+///
+/// If `Row::MAX_ROWS` or `Col::MAX_COLs` is changed
+/// - `rusty_chess::board::BOARD_TEMPLATE` will need to be fixed,
+/// - the `rusty_chess:board::format_board!` macro expansion will need to be fixed as well.
+///
+const BOARD_TEMPLATE: &'static str =
+"╌╌╌┲╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┓\n
+ {} ╏ {}  {}  {}  {}  {}  {}  {}  {} ╏\n
+ {} ╏ {}  {}  {}  {}  {}  {}  {}  {} ╏\n
+ {} ╏ {}  {}  {}  {}  {}  {}  {}  {} ╏\n
+ {} ╏ {}  {}  {}  {}  {}  {}  {}  {} ╏\n
+ {} ╏ {}  {}  {}  {}  {}  {}  {}  {} ╏\n
+ {} ╏ {}  {}  {}  {}  {}  {}  {}  {} ╏\n
+ {} ╏ {}  {}  {}  {}  {}  {}  {}  {} ╏\n
+ {} ╏ {}  {}  {}  {}  {}  {}  {}  {} ╏\n
+╌╌╌╄╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┩\n
+   ╎ {}  {}  {}  {}  {}  {}  {}  {} ╎\n
+   └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘";
+
 impl Board {
+
     /// Creates a board with the standard starting position.
     ///
     /// # Returns
@@ -337,12 +364,11 @@ impl Board {
     /// `Some(Square)` if found, otherwise `None`.
     pub fn king_square_by_color(&self, color: Color) -> Option<Square> {
         match match color {
-            Color::White => Some(self.data[Piece::WhiteKing as usize].trailing_zeros() as Square),
-            Color::Black => Some(self.data[Piece::BlackKing as usize].trailing_zeros() as Square)
+            Color::White => self.data[Piece::WhiteKing as usize].trailing_zeros() as Square,
+            Color::Black => self.data[Piece::BlackKing as usize].trailing_zeros() as Square
         } {
-            Some(Square::MAX) => None,
-            Some(square) => Some(square),
-            None => None
+            Square::MAX_SQUARES => None,
+            square => Some(square),
         }
     }
 
@@ -439,11 +465,14 @@ impl Board {
     ///
     /// A string representing the board layout.
     pub fn to_string(&self) -> String {
-        let mut rendered_board = String::new();
+        // Template symbols ┏┓╄┗┺┩┛╏╍╌╎└┘
+        let mut rendered_board = format!(
+            "┌╌╌╌┲╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┓\n",
+        );
         for row in Square::iter_ranks() {
             let square: Square = row * 8;// Compute the starting index for this rank
             rendered_board.push_str(&format!(
-                " {} | {}  {}  {}  {}  {}  {}  {}  {} |\n",
+                "╎ {} ╏ {} {} {} {} {} {} {} {} ╏\n",
                 8 - row, //rank number
                 self.get_symbol_at(square),
                 self.get_symbol_at(square + 1),
@@ -455,7 +484,9 @@ impl Board {
                 self.get_symbol_at(square + 7)
             ));
         }
-        rendered_board.push_str("   | a  b  c  d  e  f  g  h |\n");
+        rendered_board.push_str("└╌╌╌╄╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┩\n");
+        rendered_board.push_str("    ╎ a b c d e f g h ╎\n");
+        rendered_board.push_str("└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘");
         rendered_board
     }
 

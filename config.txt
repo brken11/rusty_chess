@@ -1,0 +1,5 @@
+log_mode:terminal
+terminal:1
+bad_var:bad_val
+test:1
+

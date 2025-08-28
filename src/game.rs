@@ -1,4 +1,3 @@
-use std::cmp::PartialEq;
 use crate::rules;
 use crate::board::Board;
 use crate::chess_moves::{ChessMove, MoveError};
@@ -6,6 +5,7 @@ use crate::rules::{GameState, TimeControls, Timer};
 use crate::clock::ChessClock;
 use crate::common::{ThreadIdHash, ThreadIdHashExt, ThreadIdentifier};
 // use crate::ai::ChessAI;
+use crate::player_agent;
 
 use std::thread;
 use std::sync::mpsc::{Receiver,Sender};
@@ -71,6 +71,7 @@ pub type FullMoveNumber = rules::FullMoveNumber;
 
 pub struct GameThread{
     game : Game,
+    game_metadata: Option<GameMetadata>,
     thread_identifier: ThreadIdentifier,
     player_1_handler: Option<PlayerHandler>,
     player_2_handler: Option<PlayerHandler>,
@@ -153,6 +154,7 @@ impl GameThread {
             GameThread {
                 thread_identifier,
                 game,
+                game_metadata : None,
                 player_1_handler: None,
                 player_2_handler: None,
                 ui_in,

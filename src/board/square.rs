@@ -8,7 +8,7 @@ pub type Col = rules::Col;
 /// Provides extended functionality for chess board squares.
 pub trait SquareExt {
     /// Size of Square bounds
-    const MAX: Square;
+    const MAX_SQUARES: Square;
     /// Number of Rows
     const ROWS: u8;
     /// Number of Columns
@@ -73,7 +73,7 @@ pub trait SquareExt {
     fn iter_diagonal(&self, ascending_row: bool, ascending_col: bool) -> DiagonalSquareIterator;
 }
 impl SquareExt for Square {
-    const MAX: u8 = Square::ROWS * Square::COLS;
+    const MAX_SQUARES: u8 = Square::ROWS * Square::COLS;
     const ROWS: u8 = 8;
     const COLS: u8 = 8;
     const A8: Square = 00 as Square; const B8: Square = 01 as Square; const C8: Square = 02 as Square; const D8: Square = 03 as Square; const E8: Square = 04 as Square; const F8: Square = 05 as Square; const G8: Square = 06 as Square; const H8: Square = 07 as Square;
@@ -249,6 +249,7 @@ pub trait RowExt {
     /// ```
     fn get_next_row(&self, ascending: bool) -> Option<Row>;
     fn from_rank(rank: u8) -> Self;
+    fn to_rank(&self) -> u8;
 }
 pub trait ColExt {
     const MAX_COLS: u8;
@@ -268,6 +269,7 @@ pub trait ColExt {
     /// ```
     fn get_next_col(&self, ascending: bool) -> Option<Col>;
     fn from_file(file: char) -> Self;
+    fn to_file(&self) -> char;
 }
 impl RowExt for Row {
     const MAX_ROWS: u8 = Square::ROWS;
@@ -281,6 +283,9 @@ impl RowExt for Row {
     }
     fn from_rank(rank: u8) -> Row {
         Row::MAX_ROWS - rank
+    }
+    fn to_rank(&self) -> u8 {
+        Row::MAX_ROWS - self
     }
 }
 impl ColExt for Col {
@@ -299,6 +304,9 @@ impl ColExt for Col {
         } else {
             file as u8 - 'A' as u8
         }
+    }
+    fn to_file(&self) {
+        ('a' as u8 + self) as char
     }
 }
 

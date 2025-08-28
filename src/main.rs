@@ -1,30 +1,37 @@
-mod board;
-mod chess_moves;
-mod rules;
-mod move_parser;
-mod game;
 mod ai;
-mod clock;
+mod board;
 mod chess_bot;
+mod chess_moves;
+mod clock;
+mod common;
+mod config;
+mod game;
 mod handler;
 mod log;
-mod common;
+mod move_parser;
+mod player_agent;
+mod rules;
+mod time;
 mod ui;
 
 use std::thread;
+
 use crate::board::pieces::Piece;
-use board::Board;
+use crate::board::Board;
 use crate::chess_moves::ChessMove;
-use crate::common::ThreadIdentifier;
-use crate::log::{LogMessage, LogLevel};
+use crate::common::{ThreadIdentifier};
+use crate::common::common_lib;
+use crate::config::{parse_config, Config, ConfigResult};
+use crate::log::{LogLevel, LogMessage, LogOutput};
+use crate::ui::{UIManager,UIType};
 
 fn main() {
     let mut b = Board::std_new();
     let mut e = Board::empty_new();
     println!("{}", b.to_string());
-    println!("{}", if let Some(square)= b.king_square() {square} else {255});
+    println!("{}", if let Some(square) = b.king_square() {square} else {255});
     println!("{}", e.to_string());
-    println!("{}", if let Some(square)= e.king_square() {square} else {255});
+    println!("{}", if let Some(square) = e.king_square() {square} else {255});
     // println!("Diagonal test false true");
     // b.sees_down_diagonal(8, false, true);
     // println!("Diagonal test false false");
@@ -51,11 +58,46 @@ fn main() {
     //     println!("Normalized text {}", c.to_string());
     // }
 
-    let main_id = init_main();
-    let (logger, log_channel, log_id) = log::LogThread::new(main_id);
-    logger.start();
+    let (config, config_result) = parse_config();
+    let ui_type: UIType = config.ui_type;
+    let log_output: LogOutput = config.log_output;
 
-    let test = log_channel.send(LogMessage::Message(main_id, LogLevel::Info, "Test message".to_string()));
+    // Initialize logger
+    let main_id = init_main();
+    let (log_handle, log_channel) = common_lib::init_logger(main_id, log_output);
+    common_lib::set_log_thread_log_level(main_id, LogLevel::Debug);
+    // Report config results
+    match config_result {
+        ConfigResult::Ok => {
+            let _ = log_channel.send(LogMessage::Message(main_id, LogLevel::Debug, "Config loaded and parsed!".to_string()));
+        }
+        ConfigResult::InvalidUtf8(message) => {
+            let _ = log_channel.send(LogMessage::Message(main_id, LogLevel::Warning, message));
+        }
+        ConfigResult::NoConfigFile(message) => {
+            let _ = log_channel.send(LogMessage::Message(main_id, LogLevel::Warning, message));
+        }
+        ConfigResult::ParsingError(error_messages) => {
+            for message in error_messages {
+                let r = log_channel.send(LogMessage::Message(main_id, LogLevel::Error, message));
+                if let Err(_) = r {
+                    println!("Log panicked.");
+                    break;
+                }
+            }
+        }
+    }
+
+    // Initialize ui
+    let mut ui_thread = UIManager::new(Some(log_channel.clone()));
+    ui_thread.set_ui_type(ui_type);
+    let ui_handle = ui_thread.start();
+
+    let test = log_channel.send(LogMessage::Message(
+        main_id,
+        LogLevel::Info,
+        "Test message".to_string(),
+    ));
 
     if test.is_err() {
         return;
@@ -64,17 +106,25 @@ fn main() {
     thread::sleep(std::time::Duration::from_millis(1000));
 
     println!("Test shutdown from main thread");
-    let test = log_channel.send(LogMessage::Instruction(main_id, log::LogInstruction::Shutdown));
-
+    let test = log_channel.send(LogMessage::Instruction(
+        main_id,
+        log::LogInstruction::Shutdown,
+    ));
     if test.is_err() {
-        println!("Thread panicked");
+        println!("LogThread panicked");
     }
-    thread::sleep(std::time::Duration::from_millis(1000));
 
+    let ui_thread = ui_handle.join();
+    if ui_thread.is_err() {
+        println!("UI panicked");
+    }
+
+    thread::sleep(std::time::Duration::from_millis(1000));
+    
     println!("End of main");
 }
 
-pub fn init_main() -> ThreadIdentifier {
-    let hash: u128 = std::time::Instant::now().elapsed().as_nanos();
+fn init_main() -> ThreadIdentifier {
+    let hash: u128 = ThreadIdentifier::generate_id();
     ThreadIdentifier::Main(hash)
 }
