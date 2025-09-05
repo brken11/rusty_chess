@@ -30,15 +30,12 @@ pub fn parse_config() -> (Config, ConfigResult) {
     let mut config_data = String::new();
     let config = default();
 
-    match config_file {
-        Err(_) => {
-            let c = File::create(CONFIG_PATH);
-            match c {
-                Ok(mut file) => {let _ = file.write("Hello there!".as_bytes());}
-                Err(_) => println!("Failed to make config file.")
-            }
+    if let Err(_) = config_file {
+        let c = File::create(CONFIG_PATH);
+        match c {
+            Ok(mut file) => {let _ = file.write("Hello there!".as_bytes());}
+            Err(_) => println!("Failed to make config file.")
         }
-        _ => {}
     }
     match config_file {
         Err(_) => return (config, ConfigResult::NoConfigFile(format!("The file \"{}\", could not be found. Using default config.", CONFIG_PATH))),
@@ -53,7 +50,7 @@ pub fn parse_config() -> (Config, ConfigResult) {
     // Wonky, I know, I just want to make sure that the reference is always
     // pointing to a valid string slice while parsing.
     let mut base_path = DEFAULT_LOG_PATH;
-    let mut path: &mut &str = &mut base_path;
+    let path: &mut &str = &mut base_path;
 
     for line in config_data.lines() {
         if let Some((variable, value)) = line.split_once(':') {
@@ -99,7 +96,7 @@ pub fn parse_config() -> (Config, ConfigResult) {
     }*/
     update_result(
         &mut config_result,
-        parse_line(&mut config, "test", "true", &mut path),
+        parse_line(&mut config, "test", "true", path),
     ); //test
 
     (config, config_result)
@@ -160,8 +157,7 @@ fn update_result(config_result: &mut ConfigResult, result: Result<(), String>) {
         Err(message) => match config_result {
             ConfigResult::ParsingError(error_vec) => error_vec.push(message),
             ConfigResult::Ok => {
-                let mut error_vec = Vec::new();
-                error_vec.push(message);
+                let error_vec = vec![message];
                 *config_result = ConfigResult::ParsingError(error_vec)
             }
             _ => {}

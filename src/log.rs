@@ -148,9 +148,8 @@ impl LogThread {
     }
     pub fn set_timestamp_mode(&mut self, display_mode: time_format::DisplayMode) {
         self.date_display_mode = display_mode;
-        match &mut self.date_millis {
-            TimeTracker::Date(date_millis) => date_millis.set_display_mode(display_mode),
-            _ => {}
+        if let TimeTracker::Date(date_millis) = &mut self.date_millis {
+            date_millis.set_display_mode(display_mode);
         }
     }
     pub fn set_print_thread_identifier(&mut self, print_thread_identifier: bool) {
@@ -167,12 +166,9 @@ impl LogThread {
         thread::spawn(move || self.run())
     }
     fn init_std_out(&mut self) {
-        match self.out {
-            LogOutput::InitStdout => {
-                let terminal: Sender<String> = Terminal::get_sender();
-                self.out = LogOutput::Stdout(terminal);
-            }
-            _ => {}
+        if let LogOutput::InitStdout = self.out {
+            let terminal: Sender<String> = Terminal::get_sender();
+            self.out = LogOutput::Stdout(terminal);
         }
     }
     fn run(mut self) -> LogThread {

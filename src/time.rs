@@ -211,17 +211,15 @@ pub mod time_format {
                     date.year += year_count;
                     time_millis -= year_count as u128 * DateMillis::REGULAR_YEAR;
                 }
+            } else if time_millis >= 3 * DateMillis::REGULAR_YEAR {
+                is_leap_year = true;
+                date.year += 3;
+                time_millis -= 3 * DateMillis::REGULAR_YEAR;
             } else {
-                if time_millis >= 3 * DateMillis::REGULAR_YEAR {
-                    is_leap_year = true;
-                    date.year += 3;
-                    time_millis -= 3 * DateMillis::REGULAR_YEAR;
-                } else {
-                    is_leap_year = false;
-                    let year_count: Year = (time_millis / DateMillis::REGULAR_YEAR) as Year;
-                    date.year += year_count;
-                    time_millis -= year_count as u128 * DateMillis::REGULAR_YEAR;
-                }
+                is_leap_year = false;
+                let year_count: Year = (time_millis / DateMillis::REGULAR_YEAR) as Year;
+                date.year += year_count;
+                time_millis -= year_count as u128 * DateMillis::REGULAR_YEAR;
             }
             //println!("DateMillis\n\ttime_millis={}", time_millis);
             //println!("DateMillis:{{\n\t{}\n}}", date);

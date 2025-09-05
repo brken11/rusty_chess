@@ -574,11 +574,8 @@ pub(crate) mod chess_notation_parser {
 }
 
 fn finalize(proto_move: ProtoMove) -> Result<ProtoMove, ParseError>{
-    match proto_move.move_type {
-        MoveType::Castling => {
-            return Ok(proto_move);
-        }
-        _ => {}
+    if let MoveType::Castling = proto_move.move_type {
+        return Ok(proto_move)
     }
     if proto_move.target.is_some() {
         Ok(proto_move)
@@ -613,13 +610,13 @@ fn finalize(proto_move: ProtoMove) -> Result<ProtoMove, ParseError>{
 /// chess notation.
 ///
 /// # `Token` Variants
-/// The resulting tokens could include, but are not limited to:
+///   The resulting tokens could include, but are not limited to:
 /// * Chess pieces (e.g., `Piece::WhiteKing`, `Piece::BlackPawn`).
 /// * Board ranks (`Token::Rank`) or files (`Token::File`).
 /// * Specific moves or game states like `Token::Capture`, `Token::Check`, `Token::Promotion`, 
-/// or `Token::Castle`.
+///   or `Token::Castle`.
 /// * Symbols like `Token::Separator` (`-` or `>`), `Token::Checkmate` (`#`),
-/// and `Token::Stalemate` (`‡`).
+///   and `Token::Stalemate` (`‡`).
 ///
 /// # Errors
 ///
@@ -645,16 +642,16 @@ fn finalize(proto_move: ProtoMove) -> Result<ProtoMove, ParseError>{
 ///
 /// * This implementation assumes the input string adheres to standard chess notation.
 /// * The code currently includes commented-out code blocks for handling more advanced
-/// parsing scenarios (e.g., additional input validation or specific file-rank structures).
+///   parsing scenarios (e.g., additional input validation or specific file-rank structures).
 /// * The function processes both symbolic (`K` for King, etc.) and numeric components (`1`..`8`
-/// for ranks) of chess notation.
+///   for ranks) of chess notation.
 ///
 /// # Limitations
 ///
 /// * The function uses binary search for efficiency, so the provided character map
-/// must be ***sorted***!
+///   must be ***sorted***!
 /// * Castling (`O-O` or `0-0-0`), requires careful
-/// handling of input and consumes multiple characters from the input string.
+///   handling of input and consumes multiple characters from the input string.
 ///
 /// # See Also
 ///
@@ -750,7 +747,7 @@ fn tokenize_string(string: &str, map:&[(char, char)], color: Color) -> Result<Ve
 
 fn pre_process_tokens(tokens: &Vec<Token>) -> Result<Vec<Token>, ParseError>{
     let mut processed_tokens: Vec<Token> = Vec::with_capacity(tokens.len());
-    let mut token_iter = tokens.into_iter().peekable();
+    let mut token_iter = tokens.iter().peekable();
 
     while let Some(token) = token_iter.next() { match token {
             Token::Promotion(_) => {

@@ -305,7 +305,7 @@ impl ColExt for Col {
             file as u8 - 'A' as u8
         }
     }
-    fn to_file(&self) {
+    fn to_file(&self) -> char {
         ('a' as u8 + self) as char
     }
 }

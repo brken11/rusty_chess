@@ -80,7 +80,7 @@ fn main() {
         ConfigResult::ParsingError(error_messages) => {
             for message in error_messages {
                 let r = log_channel.send(LogMessage::Message(main_id, LogLevel::Error, message));
-                if let Err(_) = r {
+                if r.is_err() {
                     println!("Log panicked.");
                     break;
                 }

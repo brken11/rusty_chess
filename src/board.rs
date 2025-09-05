@@ -466,9 +466,7 @@ impl Board {
     /// A string representing the board layout.
     pub fn to_string(&self) -> String {
         // Template symbols ┏┓╄┗┺┩┛╏╍╌╎└┘
-        let mut rendered_board = format!(
-            "┌╌╌╌┲╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┓\n",
-        );
+        let mut rendered_board = "┌╌╌╌┲╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┓\n".to_string();
         for row in Square::iter_ranks() {
             let square: Square = row * 8;// Compute the starting index for this rank
             rendered_board.push_str(&format!(
@@ -486,7 +484,7 @@ impl Board {
         }
         rendered_board.push_str("└╌╌╌╄╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┩\n");
         rendered_board.push_str("    ╎ a b c d e f g h ╎\n");
-        rendered_board.push_str("└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘");
+        rendered_board.push_str("    └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘");
         rendered_board
     }
 

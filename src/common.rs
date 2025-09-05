@@ -110,7 +110,7 @@ impl Terminal {
         (Terminal { sender }, receiver)
     }
     pub fn get_sender() -> Sender<String> {
-        let terminal = TERMINAL.get_or_init(|| Terminal::start());
+        let terminal = TERMINAL.get_or_init(Terminal::start);
 
         terminal.sender.clone()
     }
@@ -159,9 +159,8 @@ pub mod common_lib {
         }
     }
     fn set_sender(new_sender: Option<Sender<LogMessage>>) {
-        match LOG_SENDER.write(){
-            Ok(mut sender) => *sender = new_sender,
-            Err(_) => {}
+        if let Ok(mut sender) = LOG_SENDER.write() {
+            *sender = new_sender;
         }
     }
 

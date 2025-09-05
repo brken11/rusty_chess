@@ -432,9 +432,11 @@ impl ChessMove {
         match moves.len() {
             0 => Err(MoveError::OriginNotFound(piece)),
             1 => Ok(moves[0].clone()),
-            _ => Err(MoveError::DisambiguousMove(Self::disambiguate_from_moves(
-                moves,
-            ))),
+            _ => Err(MoveError::DisambiguousMove(
+                Self::disambiguate_from_moves(
+                    &moves,
+                )
+            )),
         }
     }
     pub fn new_from_squares(
@@ -492,10 +494,7 @@ impl ChessMove {
         } else {
             format!(
                 "{}{}{}{}",
-                match initial_char {
-                    Some(c) => c,
-                    _ => "",
-                },
+                initial_char.unwrap_or_default(),
                 self.origin.to_square_string(),
                 if self.meta_data.is_capture() {
                     "x"
@@ -697,10 +696,7 @@ impl ChessMove {
     /// * `Ok(())` if the move is valid.
     /// * `Err(MoveError)` if the move is illegal.
     pub fn validate_move(&mut self, board: &mut Board) -> Result<(), MoveError> {
-        let status = self.validate_movement(board);
-        if status.is_err() {
-            return status;
-        }
+        self.validate_movement(board)?;
 
         if self.leaves_king_in_check(board) {
             return Err(LeavesKingInCheck);
@@ -875,12 +871,14 @@ impl ChessMove {
     /// * `Ok(())` if the move is valid.
     /// * `Err(MoveError::IllegalMove)` if the move is invalid.
     fn validate_rook_move(&mut self, board: &Board) -> Result<(), MoveError> {
+        // xnor handles this better, @TODO rewrite later and use one check
         let col_delta = self.target.get_col() - self.origin.get_col();
         let row_delta = self.target.get_row() - self.origin.get_row();
 
         if col_delta != 0 && row_delta != 0 {
             return Err(MoveError::IllegalMove);
-        } else if col_delta == 0 && row_delta == 0 {
+        }
+        if col_delta == 0 && row_delta == 0 {
             return Err(MoveError::IllegalMove);
         }
 
