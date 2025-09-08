@@ -128,7 +128,7 @@ pub struct Board {
 ///
 /// Assumes 8 * 8 matrix due to macro/const_fn limitations
 ///
-/// If `Row::MAX_ROWS` or `Col::MAX_COLs` is changed
+/// If `Board::ROWS` or `Board::COLS` is changed
 /// - `rusty_chess::board::BOARD_TEMPLATE` will need to be fixed,
 /// - the `rusty_chess:board::format_board!` macro expansion will need to be fixed as well.
 ///
@@ -147,6 +147,11 @@ const BOARD_TEMPLATE: &'static str =
    └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘";
 
 impl Board {
+
+    /// Number of Rows on board
+    const ROWS: u8 = 8;
+    /// Number of Columns on board
+    const COLS: u8 = 8;
 
     /// Creates a board with the standard starting position.
     ///

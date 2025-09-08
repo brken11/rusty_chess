@@ -1,5 +1,5 @@
 use crate::rules;
-
+use crate::board::Board;
 /// A square on the chessboard represented as a value between 0 and 63.
 pub type Square = rules::Square;
 pub type Row = rules::Row;
@@ -74,8 +74,8 @@ pub trait SquareExt {
 }
 impl SquareExt for Square {
     const MAX_SQUARES: u8 = Square::ROWS * Square::COLS;
-    const ROWS: u8 = 8;
-    const COLS: u8 = 8;
+    const ROWS: u8 = Board::ROWS;
+    const COLS: u8 = Board::COLS;
     const A8: Square = 00 as Square; const B8: Square = 01 as Square; const C8: Square = 02 as Square; const D8: Square = 03 as Square; const E8: Square = 04 as Square; const F8: Square = 05 as Square; const G8: Square = 06 as Square; const H8: Square = 07 as Square;
     const A7: Square = 08 as Square; const B7: Square = 09 as Square; const C7: Square = 10 as Square; const D7: Square = 11 as Square; const E7: Square = 12 as Square; const F7: Square = 13 as Square; const G7: Square = 14 as Square; const H7: Square = 15 as Square;
     const A6: Square = 16 as Square; const B6: Square = 17 as Square; const C6: Square = 18 as Square; const D6: Square = 19 as Square; const E6: Square = 20 as Square; const F6: Square = 21 as Square; const G6: Square = 22 as Square; const H6: Square = 23 as Square;
@@ -232,13 +232,14 @@ impl SquareExt for Square {
     }
 }
 pub trait RowExt {
-    const MAX_ROWS: u8;
+    const MAX_ROW: u8;
+    fn new_row(row_as_u8: u8) -> Option<Row>;
     ///
     ///
     /// # Arguments
     ///
     /// * `ascending`: whether you want the next value to be greater (if true) or lesser
-    /// (if false) than the starting row.
+    ///   (if false) than the starting row.
     ///
     /// returns: Option<Row>
     ///
@@ -249,16 +250,17 @@ pub trait RowExt {
     /// ```
     fn get_next_row(&self, ascending: bool) -> Option<Row>;
     fn from_rank(rank: u8) -> Self;
-    fn to_rank(&self) -> u8;
+    fn to_rank(self) -> u8;
 }
 pub trait ColExt {
-    const MAX_COLS: u8;
+    const MAX_COL: u8;
+    fn new_col(col_as_u8: u8) -> Option<Col>;
     ///
     ///
     /// # Arguments
     ///
     /// * `ascending`: whether you want the next value to be greater (if true) or lesser
-    /// (if false) than the starting row.
+    ///   (if false) than the starting row.
     ///
     /// returns: Option<Row>
     ///
@@ -269,73 +271,70 @@ pub trait ColExt {
     /// ```
     fn get_next_col(&self, ascending: bool) -> Option<Col>;
     fn from_file(file: char) -> Self;
-    fn to_file(&self) -> char;
+    fn to_file(self) -> char;
 }
 impl RowExt for Row {
-    const MAX_ROWS: u8 = Square::ROWS;
-    fn get_next_row(&self, ascending: bool) -> Option<Row> {
-        let next: Row = if ascending { *self + 1 } else { *self - 1 };
-        if next < Row::MAX_ROWS {
-            Some(next)
-        } else {
-            None
+    const MAX_ROW: u8 = Square::ROWS - 1;
+    fn new_row(row: u8) -> Option<Row> {
+        if row <= Row::MAX_ROW {
+            return Some(row as Row)
         }
+        None
+    }
+    fn get_next_row(&self, ascending: bool) -> Option<Row> {
+        let next = match ascending {
+            true => self.wrapping_add(1),
+            false => self.wrapping_sub(1),
+        };
+        Row::new_row(next)
     }
     fn from_rank(rank: u8) -> Row {
-        Row::MAX_ROWS - rank
+        match rank % Square::ROWS {
+            0 => 0 as Row,
+            rank => Square::ROWS - rank,
+        }
     }
-    fn to_rank(&self) -> u8 {
-        Row::MAX_ROWS - self
+    fn to_rank(self) -> u8 {
+        Square::ROWS - self
     }
 }
 impl ColExt for Col {
-    const MAX_COLS: u8 = Square::COLS;
-    fn get_next_col(&self, ascending: bool) -> Option<Col> {
-        let next: Col = if ascending { *self + 1 } else { *self - 1 };
-        if next < Self::MAX_COLS {
-            Some(next)
-        } else {
-            None
+    const MAX_COL: u8 = Square::COLS - 1;
+    fn new_col(col: u8) -> Option<Col> {
+        if col <= Col::MAX_COL {
+            return Some(col as Col)
         }
+        None
+    }
+    fn get_next_col(&self, ascending: bool) -> Option<Col> {
+        let next = match ascending {
+            true => self.wrapping_add(1),
+            false => self.wrapping_sub(1),
+        };
+        Col::new_row(next)
     }
     fn from_file(file: char) -> Col {
         if file >= 'a' {
-            file as u8 - 'a' as u8
+            ((file as u8 - b'a') % Square::COLS) as u8
         } else {
-            file as u8 - 'A' as u8
+            ((file as u8 - b'A') % Square::COLS) as u8
         }
     }
-    fn to_file(&self) -> char {
-        ('a' as u8 + self) as char
+    fn to_file(self) -> char {
+        (b'a' as u8 + self) as char
     }
 }
 
+pub struct SquareIterator{
+    square: Square,
+    next_square_offset: i8,
+    squares_remaining : u8,
+}
 pub struct DiagonalSquareIterator{
     row: Row,
     col: Col,
     ascending_row: bool,
     ascending_col: bool,
-}
-impl Iterator for DiagonalSquareIterator {
-    type Item = Square;
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(next_row) = self.row.get_next_row(self.ascending_row) {
-            if let Some(next_col) = self.col.get_next_col(self.ascending_col) {
-                self.row = next_row;
-                self.col = next_col;
-                Some(Square::new(next_row, next_col))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-}
-pub struct SquareIterator{
-    square: Square,
-    next_square_offset: i8,
-    squares_remaining : u8,
 }
 pub struct RowIterator{
     row: Row,
@@ -359,12 +358,25 @@ impl Iterator for SquareIterator {
     type Item = Square;
     fn next(&mut self) -> Option<Self::Item> {
        if self.squares_remaining == 0 {
-           None
-       } else {
-           self.square = self.square + self.next_square_offset as u8 ;
-           self.squares_remaining -= 1;
-           Some(self.square)
+           return None
        }
+       self.square = self.square.wrapping_add(self.next_square_offset as u8);
+       self.squares_remaining -= 1;
+       Some(self.square)
+    }
+}
+impl Iterator for DiagonalSquareIterator {
+    type Item = Square;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.row = match self.row.get_next_row(self.ascending_row) {
+            Some(value) => value,
+            None => return None,
+        };
+        self.col = match self.col.get_next_col(self.ascending_col) {
+            Some(value) => value,
+            None => return None,
+        };
+        Some(Square::new(self.row, self.col))
     }
 }
 impl Iterator for RowIterator {
@@ -375,7 +387,7 @@ impl Iterator for RowIterator {
                 self.row = row;
                 Some(row)
             },
-            None => {None}
+            None => None,
         }
     }
 }
@@ -387,7 +399,7 @@ impl Iterator for ColIterator {
                 self.col = col;
                 Some(col)
             },
-            None => {None}
+            None => None,
         }
     }
 }
