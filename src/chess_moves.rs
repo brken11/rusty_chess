@@ -985,7 +985,7 @@ impl ChessMove {
 
                 let mut rook_square: Square;
                 let rook: Piece;
-                let kingside_castle;
+                let castle_type;
                 let kings_color = self.piece.get_color();
                 match kings_color {
                     Color::White => {
@@ -999,17 +999,17 @@ impl ChessMove {
                 }
                 match self.origin < self.target {
                     true => {
-                        kingside_castle = true;
+                        castle_type = CastleType::KingSide;
                         rook_square += Square::COLS - 1;
                     }
                     false => {
-                        kingside_castle = false;
+                        castle_type = CastleType::QueenSide;
                     }
                 }
 
                 if board
                     .castling_rights
-                    .can_castle(kings_color, kingside_castle)
+                    .can_castle(kings_color, castle_type)
                     == false
                 {
                     return Err(CastleNotPermmited);

@@ -2,10 +2,12 @@
 //!
 //! This module defines the board, castling rights, bitboards, and extended square functionality.
 //! It provides methods to query and update board state, add/remove pieces, and render the board.
+mod castling_rights;
 pub(crate) mod pieces;
 pub mod square;
 
 pub(crate) use pieces::Color;
+pub(crate) use castling_rights::{CastlingRights,CastlingRightsExt};
 pub use pieces::Piece;
 pub(crate) use square::Square;
 pub(crate) use square::SquareExt;
@@ -18,77 +20,6 @@ pub enum BoardError {
     PieceNotFound,
     /// The target square is already occupied.
     SquareOccupied,
-}
-
-/// Contains castling rights for both white and black.
-pub type CastlingRights = u8;
-pub trait CastlingRightsExt{
-    const NONE_CAN_CASTLE: CastlingRights;
-    const ALL_CAN_CASTLE: CastlingRights;
-    const KINGSIDE_MASK: CastlingRights;
-    const QUEENSIDE_MASK: CastlingRights;
-    const WHITE_KING_MASK: CastlingRights;
-    const BLACK_KING_MASK: CastlingRights;
-    fn can_castle(self, color: Color, kingside: bool) -> bool;
-    fn can_castle_white_king_side(self) -> bool;
-    fn can_castle_white_queen_side(self) -> bool;
-    fn can_castle_black_king_side(self) -> bool;
-    fn can_castle_black_queen_side(self) -> bool;
-    fn king_moved(&mut self, king_color: Color);
-    fn rook_moved(&mut self, rook_color: Color, kingside: bool);
-}
-impl CastlingRightsExt for CastlingRights {
-    const NONE_CAN_CASTLE: CastlingRights = 0;
-    const ALL_CAN_CASTLE: CastlingRights = 0b0000_1111;
-    const KINGSIDE_MASK: CastlingRights = 0b0000_0101;
-    const QUEENSIDE_MASK: CastlingRights = 0b0000_1010;
-    const WHITE_KING_MASK: CastlingRights = 0b0000_0011;
-    const BLACK_KING_MASK: CastlingRights = 0b0000_1100;
-    #[inline]
-    fn can_castle(self, color: Color, kingside: bool) -> bool {
-        let mask = match kingside{
-            true => CastlingRights::KINGSIDE_MASK,
-            false => CastlingRights::QUEENSIDE_MASK,
-        };
-        match color{
-            Color::White => (self & mask & CastlingRights::WHITE_KING_MASK) != 0,
-            Color::Black => (self & mask & CastlingRights::BLACK_KING_MASK) != 0
-        }
-    }
-    #[inline]
-    fn can_castle_white_king_side(self) -> bool {
-        self & Self::WHITE_KING_MASK & Self::KINGSIDE_MASK > 0
-    }
-    #[inline]
-    fn can_castle_white_queen_side(self) -> bool {
-        self & Self::WHITE_KING_MASK & Self::QUEENSIDE_MASK > 0
-    }
-    #[inline]
-    fn can_castle_black_king_side(self) -> bool {
-        self & Self::BLACK_KING_MASK & Self::KINGSIDE_MASK > 0
-    }
-    #[inline]
-    fn can_castle_black_queen_side(self) -> bool {
-        self & Self::BLACK_KING_MASK & Self::QUEENSIDE_MASK > 0
-    }
-    #[inline]
-    fn king_moved(&mut self, king_color: Color){
-        match king_color{
-            Color::White => *self &= ! CastlingRights::WHITE_KING_MASK,
-            Color::Black => *self &= ! CastlingRights::BLACK_KING_MASK
-        };
-    }
-    #[inline]
-    fn rook_moved(&mut self, rook_color: Color, kingside: bool){
-        let mask = match kingside{
-            true => CastlingRights::KINGSIDE_MASK,
-            false => CastlingRights::QUEENSIDE_MASK,
-        };
-        match rook_color{
-            Color::White => *self &= ! (mask & CastlingRights::WHITE_KING_MASK),
-            Color::Black => *self &= ! (mask & CastlingRights::BLACK_KING_MASK)
-        }
-    }
 }
 
 

@@ -310,10 +310,14 @@ impl Color {
             Color::Black => match castle_type {CastleType::KingSide => Square::G8, CastleType::QueenSide => Square::C8},
         }
     }
-    pub fn iter(&self) -> ColorIter {
+    pub const fn iter(&self) -> ColorIter {
+        ColorIter{index: 0}
+    }
+    pub const fn iter_colors() -> ColorIter {
         ColorIter{index: 0}
     }
 }
+#[repr(transparent)]
 pub struct ColorIter {
     index: usize,
 }
