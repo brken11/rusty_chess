@@ -210,6 +210,7 @@ impl Piece {
 }
 
 impl Color {
+    const COLORS: [Color; 2] = [Color::White, Color::Black];
     pub const fn toggle_color(&self) -> Color {
         match self {
             Color::White => Color::Black,
@@ -308,5 +309,22 @@ impl Color {
             Color::White => match castle_type {CastleType::KingSide => Square::G1, CastleType::QueenSide => Square::C1},
             Color::Black => match castle_type {CastleType::KingSide => Square::G8, CastleType::QueenSide => Square::C8},
         }
+    }
+    pub fn iter(&self) -> ColorIter {
+        ColorIter{index: 0}
+    }
+}
+pub struct ColorIter {
+    index: usize,
+}
+impl Iterator for ColorIter {
+    type Item = Color;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= Color::COLORS.len() {
+            return None
+        }
+        let out = Color::COLORS[self.index];
+        self.index += 1;
+        Some(out)
     }
 }
