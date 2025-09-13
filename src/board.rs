@@ -7,8 +7,9 @@ pub mod square;
 
 pub(crate) use pieces::Color;
 pub use pieces::Piece;
-pub(crate) use square::Square;
+pub(crate) use square::Square as Square;
 pub(crate) use square::SquareExt;
+pub(crate) use square::square_arithmetic;
 use crate::board::square::Col;
 use crate::board::square::Row;
 

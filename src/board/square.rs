@@ -1,9 +1,25 @@
-use crate::rules;
-use crate::board::Board;
-/// A square on the chessboard represented as a value between 0 and 63.
-pub type Square = rules::Square;
-pub type Row = rules::Row;
-pub type Col = rules::Col;
+use super::Board;
+
+use std::ops::{Add, AddAssign, Sub, SubAssign,
+    Mul, MulAssign, Div, DivAssign, Rem, RemAssign};
+/// A square on the chessboard represented as a value between 0 and 63 (inclusive).
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct Square(u8);
+/// A row on the chessboard represented as a value between 0 and 7 (inclusive).
+/// ***Not***, to be confused with a Rank.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct Row(u8);
+/// A column on the chessboard represented as a value between 0 and 7 (inclusive).
+/// ***Not***, to be confused with a File.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct Col(u8);
+/// A square offset for constant definitions
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct OffsetSquare(u8);
 
 /// Provides extended functionality for chess board squares.
 pub trait SquareExt {
@@ -72,18 +88,18 @@ pub trait SquareExt {
     fn to_square_string(&self) -> String;
     fn iter_diagonal(&self, ascending_row: bool, ascending_col: bool) -> DiagonalSquareIterator;
 }
-impl SquareExt for Square {
+impl Square {
     const MAX_SQUARES: u8 = Square::ROWS * Square::COLS;
     const ROWS: u8 = Board::ROWS;
     const COLS: u8 = Board::COLS;
-    const A8: Square = 00 as Square; const B8: Square = 01 as Square; const C8: Square = 02 as Square; const D8: Square = 03 as Square; const E8: Square = 04 as Square; const F8: Square = 05 as Square; const G8: Square = 06 as Square; const H8: Square = 07 as Square;
-    const A7: Square = 08 as Square; const B7: Square = 09 as Square; const C7: Square = 10 as Square; const D7: Square = 11 as Square; const E7: Square = 12 as Square; const F7: Square = 13 as Square; const G7: Square = 14 as Square; const H7: Square = 15 as Square;
-    const A6: Square = 16 as Square; const B6: Square = 17 as Square; const C6: Square = 18 as Square; const D6: Square = 19 as Square; const E6: Square = 20 as Square; const F6: Square = 21 as Square; const G6: Square = 22 as Square; const H6: Square = 23 as Square;
-    const A5: Square = 24 as Square; const B5: Square = 25 as Square; const C5: Square = 26 as Square; const D5: Square = 27 as Square; const E5: Square = 28 as Square; const F5: Square = 29 as Square; const G5: Square = 30 as Square; const H5: Square = 31 as Square;
-    const A4: Square = 32 as Square; const B4: Square = 33 as Square; const C4: Square = 34 as Square; const D4: Square = 35 as Square; const E4: Square = 36 as Square; const F4: Square = 37 as Square; const G4: Square = 38 as Square; const H4: Square = 39 as Square;
-    const A3: Square = 40 as Square; const B3: Square = 41 as Square; const C3: Square = 42 as Square; const D3: Square = 43 as Square; const E3: Square = 44 as Square; const F3: Square = 45 as Square; const G3: Square = 46 as Square; const H3: Square = 47 as Square;
-    const A2: Square = 48 as Square; const B2: Square = 49 as Square; const C2: Square = 50 as Square; const D2: Square = 51 as Square; const E2: Square = 52 as Square; const F2: Square = 53 as Square; const G2: Square = 54 as Square; const H2: Square = 55 as Square;
-    const A1: Square = 56 as Square; const B1: Square = 57 as Square; const C1: Square = 58 as Square; const D1: Square = 59 as Square; const E1: Square = 60 as Square; const F1: Square = 61 as Square; const G1: Square = 62 as Square; const H1: Square = 63 as Square;
+    const A8: Square = Square(0_); const B8: Square = Square(1_); const C8: Square = Square(2_); const D8: Square = Square(3_); const E8: Square = Square(4_); const F8: Square = Square(5_); const G8: Square = Square(6_); const H8: Square = Square(7_);
+    const A7: Square = Square(8_); const B7: Square = Square(9_); const C7: Square = Square(10); const D7: Square = Square(11); const E7: Square = Square(12); const F7: Square = Square(13); const G7: Square = Square(14); const H7: Square = Square(15);
+    const A6: Square = Square(16); const B6: Square = Square(17); const C6: Square = Square(18); const D6: Square = Square(19); const E6: Square = Square(20); const F6: Square = Square(21); const G6: Square = Square(22); const H6: Square = Square(23);
+    const A5: Square = Square(24); const B5: Square = Square(25); const C5: Square = Square(26); const D5: Square = Square(27); const E5: Square = Square(28); const F5: Square = Square(29); const G5: Square = Square(30); const H5: Square = Square(31);
+    const A4: Square = Square(32); const B4: Square = Square(33); const C4: Square = Square(34); const D4: Square = Square(35); const E4: Square = Square(36); const F4: Square = Square(37); const G4: Square = Square(38); const H4: Square = Square(39);
+    const A3: Square = Square(40); const B3: Square = Square(41); const C3: Square = Square(42); const D3: Square = Square(43); const E3: Square = Square(44); const F3: Square = Square(45); const G3: Square = Square(46); const H3: Square = Square(47);
+    const A2: Square = Square(48); const B2: Square = Square(49); const C2: Square = Square(50); const D2: Square = Square(51); const E2: Square = Square(52); const F2: Square = Square(53); const G2: Square = Square(54); const H2: Square = Square(55);
+    const A1: Square = Square(56); const B1: Square = Square(57); const C1: Square = Square(58); const D1: Square = Square(59); const E1: Square = Square(60); const F1: Square = Square(61); const G1: Square = Square(62); const H1: Square = Square(63);
     const SQUARES: [&'static str; 64] = [
         "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
         "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
@@ -105,8 +121,8 @@ impl SquareExt for Square {
         (0, 255), (0, 1),
         (1, 255), (1, 0), (1, 1),
     ];
-    fn get_row(&self) -> Row {
-        self / Square::ROWS
+    pub(crate) fn get_row(self) -> Row {
+        Row(self.0 / Square::ROWS)
     }
     fn get_rows(&self, ascending : bool) -> RowIterator {
         RowIterator{
@@ -130,7 +146,7 @@ impl SquareExt for Square {
         }
     }
     fn get_col(&self) -> Col {
-        self % Square::COLS
+        Col(self.0 % Square::COLS)
     }
     fn get_cols(&self, ascending : bool) -> ColIterator {
         ColIterator{
@@ -273,11 +289,11 @@ pub trait ColExt {
     fn from_file(file: char) -> Self;
     fn to_file(self) -> char;
 }
-impl RowExt for Row {
+impl Row {
     const MAX_ROW: u8 = Square::ROWS - 1;
     fn new_row(row: u8) -> Option<Row> {
         if row <= Row::MAX_ROW {
-            return Some(row as Row)
+            return Some(Row(row))
         }
         None
     }
@@ -322,6 +338,201 @@ impl ColExt for Col {
     }
     fn to_file(self) -> char {
         (b'a' as u8 + self) as char
+    }
+}
+
+impl Row {
+    const NEG_ONE: u8 = u8::MAX;
+
+    fn new(row: i8) -> Row {
+        let r = row % Square::ROWS;
+        Row(
+            match r {
+                0..Square::ROWS => r as u8,
+                neg => Self::NEG_ONE -
+            }
+        )
+    }
+}
+impl Col {
+
+}
+
+impl OffsetSquare {
+    const NEG_ONE: u8 = u8::MAX;
+    
+    const fn from_row(row: Row) -> OffsetSquare {
+        OffsetSquare(
+            row.0
+            .wrapping_mul(Square::COLS)
+        )
+    }
+    const fn from_col(col: Col) -> OffsetSquare {
+        OffsetSquare(col.0)
+    }
+    const fn new(row: Row, col: Col) -> OffsetSquare {
+        OffsetSquare(
+            row.0
+            .wrapping_mul(Square::COLS)
+            .wrapping_add(col.0)
+        )
+    }
+}
+
+pub(crate) mod square_arithmetic {
+    use super::{Square,Col,Row};
+    use super::{Add, AddAssign, Sub, SubAssign,
+    Mul, MulAssign, Div, DivAssign, Rem, RemAssign};
+
+    //impl Add for Square {
+    //    type Output = Square;
+    //    fn add(self, rhs: Square) -> Self::Output {
+    //        let mut value = self.0 + rhs.0;
+    //        value %= Self::MAX_SQUARES;
+    //        Self(value)
+    //    }
+    //}
+    impl Add<Row> for Square {
+        type Output = Square;
+        fn add(self, rhs: Row) -> Self::Output {
+            let mut value = self.0 + rhs.0 * Self::COLS;
+            value %= Self::MAX_SQUARES;
+            Self(value)
+        }
+    }
+    impl Add<Col> for Square {
+        type Output = Square;
+        fn add(self, rhs: Col) -> Self::Output {
+            let mut value = self.0 + rhs.0 * Self::COLS;
+            value %= Self::MAX_SQUARES;
+            Self(value)
+        }
+    }
+    impl Sub<Row> for Square {
+        type Output = Square;
+        fn sub(self, rhs: Row) -> Self::Output {
+            Self(self.0 - rhs.0 * Square::MAX_SQUARES)
+        }
+    }
+    impl Sub<Col> for Square {
+        type Output = Square;
+        fn sub(self, rhs: Col) -> Self::Output {
+            Self(self.0 - rhs.0)
+        }
+    }
+
+    macro_rules! impl_op {
+        {$t:ty, $rhs:ty, $op:ident, $fn:ident, $equation:expr} => {
+            impl $op<$rhs> for $t {
+                type Output = $t;
+                fn $fn(self, rhs: $rhs) -> Self::Output {
+                    $t::new($equation(self, rhs))
+                }
+            }
+        };
+    }
+
+    impl_op!{Row, u8, Mul, mul, |x, y| (x.0.wrapping_mul(y))}
+}
+pub(crate) mod square_offset_arithmetic {
+    use super::{Square, OffsetSquare, Row, Col};
+    use super::{Add,AddAssign,Sub,SubAssign};
+
+    impl Add<OffsetSquare> for Square {
+        type Output = Option<Square>;
+        fn add(self, rhs: OffsetSquare) -> Self::Output {
+            let sum = self.0 + rhs.0;
+            match sum {
+                0..Square::MAX_SQUARES => Some(Square(sum)),
+                _invalid => None,
+            }
+        }
+    }
+
+    impl Add for OffsetSquare {
+        type Output = OffsetSquare;
+        fn add(self, rhs: OffsetSquare) -> Self::Output {
+            OffsetSquare(
+                self.0
+                .wrapping_add(rhs.0)
+            )
+        }
+    }
+    impl AddAssign for OffsetSquare {
+        fn add_assign(&mut self, rhs: OffsetSquare) {
+            self.0 = self.0
+                .wrapping_add(rhs.0)
+        }
+    }
+
+    impl Add<Row> for OffsetSquare {
+        type Output = OffsetSquare;
+        fn add(self, rhs: Row) -> Self::Output {
+            OffsetSquare(
+                self.0
+                .wrapping_add(
+                    rhs.0 * Square::COLS
+                )
+            )
+        }
+    }
+    impl AddAssign<Row> for OffsetSquare {
+        fn add_assign(&mut self, rhs: Row) {
+            self.0 = self.0
+                .wrapping_add(
+                    rhs.0 * Square::COLS
+                );
+        }
+    }
+    impl Sub<Row> for OffsetSquare {
+        type Output = OffsetSquare;
+        fn sub(self, rhs: Row) -> Self::Output {
+            OffsetSquare(
+                self.0
+                .wrapping_add(
+                    rhs.0 * Square::COLS
+                )
+            )
+        }
+    }
+    impl SubAssign<Row> for OffsetSquare {
+        fn sub_assign(&mut self, rhs: Row) {
+            self.0 = self.0
+                .wrapping_sub(
+                    rhs.0 * Square::COLS
+                );
+        }
+    }
+
+    impl Add<Col> for OffsetSquare {
+        type Output = OffsetSquare;
+        fn add(self, rhs: Col) -> Self::Output {
+            OffsetSquare(
+                self.0
+                .wrapping_add(rhs.0)
+            )
+        }
+    }
+    impl AddAssign<Col> for OffsetSquare {
+        fn add_assign(&mut self, rhs: Col) {
+            self.0 = self.0
+                .wrapping_add(rhs.0);
+        }
+    }
+    impl Sub<Col> for OffsetSquare {
+        type Output = OffsetSquare;
+        fn sub(self, rhs: Col) -> Self::Output {
+            OffsetSquare(
+                self.0
+                .wrapping_sub(rhs.0)
+            )
+        }
+    }
+    impl SubAssign<Col> for OffsetSquare {
+        fn sub_assign(&mut self, rhs: Col) {
+            self.0 = self.0
+                .wrapping_sub(rhs.0);
+        }
     }
 }
 
@@ -432,28 +643,8 @@ impl Iterator for KingIterator {
     }
 }
 
-// impl fmt::Display for Square {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         self.to_square_string().fmt(f)
-//     }
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+impl std::fmt::Display for Square {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.to_square_string().fmt(f)
+    }
+}
