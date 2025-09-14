@@ -20,6 +20,14 @@ pub struct Col(u8);
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct OffsetSquare(u8);
+/// A row offset for square arithmetic
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct OffsetRow(u8);
+/// A column offset for square arithmetic
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct OffsetCol(u8);
 
 /// Provides extended functionality for chess board squares.
 pub trait SquareExt {
@@ -89,18 +97,23 @@ pub trait SquareExt {
     fn iter_diagonal(&self, ascending_row: bool, ascending_col: bool) -> DiagonalSquareIterator;
 }
 impl Square {
-    const MAX_SQUARES: u8 = Square::ROWS * Square::COLS;
-    const ROWS: u8 = Board::ROWS;
-    const COLS: u8 = Board::COLS;
-    const A8: Square = Square(0_); const B8: Square = Square(1_); const C8: Square = Square(2_); const D8: Square = Square(3_); const E8: Square = Square(4_); const F8: Square = Square(5_); const G8: Square = Square(6_); const H8: Square = Square(7_);
-    const A7: Square = Square(8_); const B7: Square = Square(9_); const C7: Square = Square(10); const D7: Square = Square(11); const E7: Square = Square(12); const F7: Square = Square(13); const G7: Square = Square(14); const H7: Square = Square(15);
-    const A6: Square = Square(16); const B6: Square = Square(17); const C6: Square = Square(18); const D6: Square = Square(19); const E6: Square = Square(20); const F6: Square = Square(21); const G6: Square = Square(22); const H6: Square = Square(23);
-    const A5: Square = Square(24); const B5: Square = Square(25); const C5: Square = Square(26); const D5: Square = Square(27); const E5: Square = Square(28); const F5: Square = Square(29); const G5: Square = Square(30); const H5: Square = Square(31);
-    const A4: Square = Square(32); const B4: Square = Square(33); const C4: Square = Square(34); const D4: Square = Square(35); const E4: Square = Square(36); const F4: Square = Square(37); const G4: Square = Square(38); const H4: Square = Square(39);
-    const A3: Square = Square(40); const B3: Square = Square(41); const C3: Square = Square(42); const D3: Square = Square(43); const E3: Square = Square(44); const F3: Square = Square(45); const G3: Square = Square(46); const H3: Square = Square(47);
-    const A2: Square = Square(48); const B2: Square = Square(49); const C2: Square = Square(50); const D2: Square = Square(51); const E2: Square = Square(52); const F2: Square = Square(53); const G2: Square = Square(54); const H2: Square = Square(55);
-    const A1: Square = Square(56); const B1: Square = Square(57); const C1: Square = Square(58); const D1: Square = Square(59); const E1: Square = Square(60); const F1: Square = Square(61); const G1: Square = Square(62); const H1: Square = Square(63);
-    const SQUARES: [&'static str; 64] = [
+    /// Size of Square bounds
+    pub const MAX_SQUARES: u8 = Square::ROWS * Square::COLS;
+    /// Number of Rows
+    pub const ROWS: u8 = Board::ROWS;
+    /// Number of Columns
+    pub const COLS: u8 = Board::COLS;
+    /// Squares
+    pub const A8: Square = Square(0_); pub const B8: Square = Square(1_); pub const C8: Square = Square(2_); pub const D8: Square = Square(3_); pub const E8: Square = Square(4_); pub const F8: Square = Square(5_); pub const G8: Square = Square(6_); pub const H8: Square = Square(7_);
+    pub const A7: Square = Square(8_); pub const B7: Square = Square(9_); pub const C7: Square = Square(10); pub const D7: Square = Square(11); pub const E7: Square = Square(12); pub const F7: Square = Square(13); pub const G7: Square = Square(14); pub const H7: Square = Square(15);
+    pub const A6: Square = Square(16); pub const B6: Square = Square(17); pub const C6: Square = Square(18); pub const D6: Square = Square(19); pub const E6: Square = Square(20); pub const F6: Square = Square(21); pub const G6: Square = Square(22); pub const H6: Square = Square(23);
+    pub const A5: Square = Square(24); pub const B5: Square = Square(25); pub const C5: Square = Square(26); pub const D5: Square = Square(27); pub const E5: Square = Square(28); pub const F5: Square = Square(29); pub const G5: Square = Square(30); pub const H5: Square = Square(31);
+    pub const A4: Square = Square(32); pub const B4: Square = Square(33); pub const C4: Square = Square(34); pub const D4: Square = Square(35); pub const E4: Square = Square(36); pub const F4: Square = Square(37); pub const G4: Square = Square(38); pub const H4: Square = Square(39);
+    pub const A3: Square = Square(40); pub const B3: Square = Square(41); pub const C3: Square = Square(42); pub const D3: Square = Square(43); pub const E3: Square = Square(44); pub const F3: Square = Square(45); pub const G3: Square = Square(46); pub const H3: Square = Square(47);
+    pub const A2: Square = Square(48); pub const B2: Square = Square(49); pub const C2: Square = Square(50); pub const D2: Square = Square(51); pub const E2: Square = Square(52); pub const F2: Square = Square(53); pub const G2: Square = Square(54); pub const H2: Square = Square(55);
+    pub const A1: Square = Square(56); pub const B1: Square = Square(57); pub const C1: Square = Square(58); pub const D1: Square = Square(59); pub const E1: Square = Square(60); pub const F1: Square = Square(61); pub const G1: Square = Square(62); pub const H1: Square = Square(63);
+    /// Array of square labels, from "a8","b8","c8" ... to ..., "f1", "g1", "h1".
+    pub const SQUARES: [&'static str; 64] = [
         "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
         "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
         "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
@@ -110,121 +123,145 @@ impl Square {
         "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
         "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
     ];
-    const KNIGHT_OFFSETS: &'static[(Row, Col); 8] = &[
-        (254u8, 255u8), (254u8, 1u8),
-        (255u8, 254u8), (255u8, 2u8),
-        (1u8, 254u8), (1u8, 2u8),
-        (2u8, 255u8), (2u8, 1u8)
+    pub const KNIGHT_OFFSETS: &'static[(OffsetRow, OffsetCol); 8] = &[
+        (OffsetRow::new(-2), OffsetCol::new(-1)), (OffsetRow::new(-2), OffsetCol::new(1)),
+        (OffsetRow::new(-1), OffsetCol::new(-2)), (OffsetRow::new(-1), OffsetCol::new(2)),
+        (OffsetRow::new(1), OffsetCol::new(-2)), (OffsetRow::new(1), OffsetCol::new(2)),
+        (OffsetRow::new(2), OffsetCol::new(-1)), (OffsetRow::new(2), OffsetCol::new(1)),
     ];
-    const KING_OFFSETS: &'static [(Row, Col); 8] = &[
-        (255, 255), (255, 0), (255, 1),
-        (0, 255), (0, 1),
-        (1, 255), (1, 0), (1, 1),
+    pub const KING_OFFSETS: &'static [(OffsetRow, OffsetCol); 8] = &[
+        (OffsetRow::new(-1), OffsetCol::new(-1)), (OffsetRow::new(-1), OffsetCol::new(0)), (OffsetRow::new(-1), OffsetCol::new(1)),
+        (OffsetRow::new(0), OffsetCol::new(-1)), (OffsetRow::new(0), OffsetCol::new(1)),
+        (OffsetRow::new(1), OffsetCol::new(-1)), (OffsetRow::new(1), OffsetCol::new(0)), (OffsetRow::new(1), OffsetCol::new(1)),
     ];
-    pub(crate) fn get_row(self) -> Row {
+    /// Returns the row (0-based) for the square.
+    pub(crate) const fn get_row(self) -> Row {
         Row(self.0 / Square::ROWS)
     }
-    fn get_rows(&self, ascending : bool) -> RowIterator {
+    /// Returns an iterator over rows relative to this square.
+    ///
+    /// If `ascending` is true, the iterator starts at the next row up to the top (row 7).
+    /// Otherwise, it iterates from row 0 up to the current row (exclusive).
+    pub const fn get_rows(&self, ascending : bool) -> RowIterator {
         RowIterator{
             row: self.get_row(),
             ascending,
         }
     }
-    fn get_row_squares(&self, ascending : bool) -> SquareIterator {
+    /// Returns an iterator over squares in the same column (file) in the given direction.
+    pub fn get_row_squares(self, ascending : bool) -> SquareIterator {
         if ascending {
             SquareIterator{
-                square: *self,
-                next_square_offset: Square::COLS as i8,
-                squares_remaining: Square::COLS -1 - self.get_row(),
+                square: self,
+                next_square_offset: OffsetSquare::from_row(OffsetRow::POS_ONE),
+                squares_remaining: Row::MAX_ROW - self.get_row().get_next_rows(ascending),
             }
         } else{
             SquareIterator{
-                square: *self,
-                next_square_offset: 0i8 - Self::COLS as i8,
-                squares_remaining: self.get_row(),
+                square: self,
+                next_square_offset: OffsetSquare::from_row(OffsetRow::NEG_ONE),
+                squares_remaining: self.get_row().get_next_rows(ascending),
             }
         }
     }
-    fn get_col(&self) -> Col {
+    /// Returns the column (0-based) for the square.
+    pub const fn get_col(self) -> Col {
         Col(self.0 % Square::COLS)
     }
-    fn get_cols(&self, ascending : bool) -> ColIterator {
+    /// Returns an iterator over columns relative to this square.
+    pub const fn get_cols(self, ascending : bool) -> ColIterator {
         ColIterator{
             col: self.get_col(),
             ascending,
         }
     }
-    fn get_col_squares(&self, ascending : bool) -> SquareIterator {
+    /// Returns an iterator over squares in the same row (rank) in the given direction.
+    pub const fn get_col_squares(self, ascending : bool) -> SquareIterator {
         if ascending {
             SquareIterator{
-                square: *self,
-                next_square_offset: 1,
-                squares_remaining: Square::COLS -1 - self.get_col(),
+                square: self,
+                next_square_offset: OffsetSquare::from_col(OffsetCol::new(1)),
+                squares_remaining: self.get_col().get_next_cols(ascending),
             }
         } else {
             SquareIterator{
-                square: *self,
-                next_square_offset: -1,
-                squares_remaining: self.get_col(),
+                square: self,
+                next_square_offset: OffsetSquare::from_col(OffsetCol::new(-1)),
+                squares_remaining: self.get_col().get_next_cols(ascending),
             }
         }
     }
-    fn get_pos_pair(&self) -> (Row, Col) {
+    /// Returns a tuple of (row, column) for the square.
+    pub const fn get_pos_pair(&self) -> (Row, Col) {
         (self.get_row(),self.get_col())
     }
-    fn get_index(&self) -> usize {
-        *self as usize
+    /// Returns the index of the square as a `usize`.
+    pub const fn get_index(&self) -> usize {
+        self.0 as usize
     }
-    fn get_file(&self) -> char {
-        match self % Square::COLS {
-            0 => 'a', 1 => 'b', 2 => 'c', 3 => 'd', 4 => 'e', 5 => 'f', 6 => 'g', 7 => 'h',
-            _ => panic!("Invalid file index"),
+    /// Returns the file (column letter, e.g., 'a' through 'h') for the square.
+    pub const fn get_file(self) -> char {
+        self.get_col()
+            .to_file()
+    }
+    /// Returns the rank (1-based, e.g., 1 through 8) for the square.
+    pub const fn get_rank(&self) -> u8 {
+        self.get_row()
+            .to_rank()
+    }
+    /// Creates a new square from the given row and column.
+    pub(crate) const fn new(row : Row, col : Col) -> Square {
+        Square(
+            row.0 * Square::COLS
+            + col.0
+        )
+    }
+    /// Creates a new square from the given row and column if they are valid, otherwise returns `None`.
+    pub fn valid_new(row : u8, col : u8) -> Option<Square> {
+        if (Row::MIN_ROW..=Row::MAX_ROW).contains(&row)
+            && (Col::MIN_COL..=Col::MAX_COL).contains(&col) {
+            return Some(Square::new(Row(row),Col(col)))
         }
+        None
     }
-    fn get_rank(&self) -> u8 {
-        Square::ROWS - self / Square::ROWS
+    /// Returns the absolute difference is rows between `Square`s
+    pub fn row_diff(self, other_square: Square) -> u8 {
+        self.get_row()
+            .abs_diff(other_square.get_row())
     }
-    fn new(row : Row, col : Col) -> Square {
-        row * Square::COLS + col
-    }
-    fn valid_new(row : Row, col : Col) -> Option<Square> {
-        if row>= Square::ROWS || col >= Square::COLS {None} else {Some(Square::new(row, col))}
+    /// Returns the absolute difference in columns between `Square`s
+    pub fn col_diff(self, other_square: Square) -> u8 {
+        self.get_col()
+            .abs_diff(other_square.get_col())
     }
 
-    fn row_diff(&self, other_square: Square) -> u8 {
-        let self_minus_other = self.get_row() - other_square.get_row();
-        if self_minus_other < Square::ROWS {
-            self_minus_other
-        } else {
-            other_square.get_row() - self.get_row()
-        }
-    }
-    fn col_diff(&self, other_square: Square) -> u8 {
-        let diff = self.get_col() - other_square.get_col();
-        if diff < 64 {
-            diff
-        } else {
-            0 - diff
-        }
+    fn get_diagonal_offset(self, ascending_row: bool, ascending_col: bool) -> OffsetSquare {
+        OffsetSquare::new(
+            OffsetRow::from_ascending(ascending_row),
+            OffsetCol::from_ascending(ascending_col),
+        )
     }
 
-    fn iter_files() -> impl Iterator<Item = char> {
-        (0..8).map(|i| i as u8).map(|i| i.get_file())
+    /// Returns an iterator over the file letters.
+    pub fn iter_files() -> impl Iterator<Item = char> {Col::iter_files()}
+    /// Returns an iterator over the rank numbers.
+    pub fn iter_ranks() -> impl Iterator<Item = u8> {Row::iter_ranks()}
+    /// Returns an iterator over all squares (0 to 63).
+    pub fn iter_squares() -> impl Iterator<Item = Square> {
+    (0..Square::MAX_SQUARES)
+        .into_iter()
+        .map(|i| Square(i))
     }
-    fn iter_ranks() -> impl Iterator<Item = u8> {
-        (0..8).map(|i| i as u8)
-    }
-    fn iter_squares() -> impl Iterator<Item = Square> {
-        (0..64).map(|i| i as u8)
-    }
-    fn iter_knight_offsets(&self) -> impl Iterator<Item=Square> {
+    /// Returns an iterator over the squares a knight can reach from the Square
+    pub const fn iter_knight_offsets(&self) -> impl Iterator<Item=Square> {
         KnightIterator{
             row: self.get_row(),
             col: self.get_col(),
             index: 0,
         }
     }
-    fn iter_king_offsets(&self) -> impl Iterator<Item=Square> {
+    /// Returns an iterator over the squares a King can reach from the Square
+    pub const fn iter_king_offsets(&self) -> impl Iterator<Item=Square> {
         KingIterator{
             row: self.get_row(),
             col: self.get_col(),
@@ -232,18 +269,27 @@ impl Square {
         }
     }
 
-    fn to_square_str(&self) -> &str {
-        Self::SQUARES[*self as usize]
+    pub const fn to_square_str(&self) -> &str {
+        Self::SQUARES[self.0 as usize]
     }
-    fn to_square_string(&self) -> String {
+    pub fn to_square_string(&self) -> String {
         format!("{}{}", self.get_file(),self.get_rank())
     }
-    fn iter_diagonal(&self, ascending_row: bool, ascending_col: bool) -> DiagonalSquareIterator {
+    pub fn iter_diagonal(self, ascending_row: bool, ascending_col: bool) -> DiagonalSquareIterator {
+        let squares_remaining = self.get_row()
+                .get_next_rows(ascending_row)
+                .min(
+                    self.get_col()
+                    .get_next_cols(ascending_col)
+                );
+        let diagonal_offset = OffsetSquare::new(
+            OffsetRow::from_ascending(ascending_row),
+            OffsetCol::from_ascending(ascending_col),
+        );
         DiagonalSquareIterator{
-            row : self.get_row(), 
-            col : self.get_col(),
-            ascending_row,
-            ascending_col,
+            square: self,
+            squares_remaining,
+            diagonal_offset, 
         }
     }
 }
@@ -290,88 +336,187 @@ pub trait ColExt {
     fn to_file(self) -> char;
 }
 impl Row {
-    const MAX_ROW: u8 = Square::ROWS - 1;
-    fn new_row(row: u8) -> Option<Row> {
+    pub const MAX_ROW: u8 = Square::ROWS - 1;
+    pub const MIN_ROW: u8 = 0;
+    pub const fn new_row(row: u8) -> Option<Row> {
         if row <= Row::MAX_ROW {
             return Some(Row(row))
         }
         None
     }
-    fn get_next_row(&self, ascending: bool) -> Option<Row> {
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `ascending`: whether you want the next value to be greater (if true) or lesser
+    ///   (if false) than the starting row.
+    ///
+    /// returns: Option<Row>
+    ///
+    /// # Examples
+    /// ```
+    /// let r:Row = 2; assert!(r.get_next_row(true), 3); assert!(r.get_next_row(false), 1);
+    /// let r:Row = 5; assert!(r.get_next_row(true), 6); assert!(r.get_next_row(false), 4);
+    /// ```
+    pub const fn get_next_row(self, ascending: bool) -> Option<Row> {
         let next = match ascending {
-            true => self.wrapping_add(1),
-            false => self.wrapping_sub(1),
+            true => self.0.wrapping_add(1),
+            false => self.0.wrapping_sub(1),
         };
         Row::new_row(next)
     }
-    fn from_rank(rank: u8) -> Row {
+    pub const fn get_next_rows(self, ascending: bool) -> u8 {
+        match ascending {
+            true => self.0 - Self::MIN_ROW,
+            false => Self::MAX_ROW - self.0,
+        }
+    }
+    pub fn iter_rows() -> impl Iterator<Item=Row> {
+        (Self::MIN_ROW..=Self::MAX_ROW)
+            .into_iter()
+            .map(|i| Row(i))
+    }
+    pub fn iter_ranks() -> impl Iterator<Item=u8> {
+        (Square::ROWS..0)
+            .into_iter()
+    }
+
+    pub const fn abs_diff(self, other_row: Row) -> u8 {
+        self.0
+            .abs_diff(other_row.0)
+    }
+
+    pub const fn from_rank(rank: u8) -> Row {
         match rank % Square::ROWS {
-            0 => 0 as Row,
-            rank => Square::ROWS - rank,
+            0 => Row(0),
+            rank => Row(Square::ROWS - rank),
         }
     }
-    fn to_rank(self) -> u8 {
-        Square::ROWS - self
+    pub const fn to_rank(self) -> u8 {
+        Square::ROWS - self.0
     }
-}
-impl ColExt for Col {
-    const MAX_COL: u8 = Square::COLS - 1;
-    fn new_col(col: u8) -> Option<Col> {
-        if col <= Col::MAX_COL {
-            return Some(col as Col)
-        }
-        None
-    }
-    fn get_next_col(&self, ascending: bool) -> Option<Col> {
-        let next = match ascending {
-            true => self.wrapping_add(1),
-            false => self.wrapping_sub(1),
-        };
-        Col::new_row(next)
-    }
-    fn from_file(file: char) -> Col {
-        if file >= 'a' {
-            ((file as u8 - b'a') % Square::COLS) as u8
-        } else {
-            ((file as u8 - b'A') % Square::COLS) as u8
-        }
-    }
-    fn to_file(self) -> char {
-        (b'a' as u8 + self) as char
-    }
-}
 
-impl Row {
-    const NEG_ONE: u8 = u8::MAX;
-
-    fn new(row: i8) -> Row {
-        let r = row % Square::ROWS;
-        Row(
-            match r {
-                0..Square::ROWS => r as u8,
-                neg => Self::NEG_ONE -
-            }
-        )
+    pub const fn as_u8(self) -> u8 {
+        self.0
     }
 }
 impl Col {
+    pub const MAX_COL: u8 = Square::COLS - 1;
+    pub const MIN_COL: u8 = 0;
+    pub const fn new_col(col: u8) -> Option<Col> {
+        if col <= Col::MAX_COL {
+            return Some(Col(col))
+        }
+        None
+    }
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `ascending`: whether you want the next value to be greater (if true) or lesser
+    ///   (if false) than the starting row.
+    ///
+    /// returns: Option<Row>
+    ///
+    /// # Examples
+    /// ```
+    /// let c:Col = 2; assert!(c.get_next_col(true), 3); assert!(c.get_next_col(false), 1);
+    /// let c:Col = 5; assert!(c.get_next_col(true), 6); assert!(c.get_next_col(false), 4);
+    /// ```
+    pub const fn get_next_col(self, ascending: bool) -> Option<Col> {
+        let next = match ascending {
+            true => self.0.wrapping_add(1),
+            false => self.0.wrapping_sub(1),
+        };
+        Col::new_col(next)
+    }
+    pub const fn get_next_cols(self, ascending: bool) -> u8 {
+        match ascending {
+            true => self.0 - Self::MIN_COL,
+            false => Self::MAX_COL - self.0,
+        }
+    }
+    pub fn iter_cols() -> impl Iterator<Item=Col> {
+        (Self::MIN_COL..=Self::MAX_COL)
+            .into_iter()
+            .map(|i| Col(i))
+    }
+    pub fn iter_files() -> impl Iterator<Item=char> {
+        (Self::MIN_COL..=Self::MAX_COL)
+            .into_iter()
+            .map(|i| Col(i).to_file())
+    }
 
+    pub const fn abs_diff(self, other_col: Col) -> u8 {
+        self.0
+            .abs_diff(other_col.0)
+    }
+
+    pub const fn from_file(file: char) -> Col {
+        if file >= 'a' {
+            Col(
+                (file as u8 - b'a') % Square::COLS
+            )
+        } else {
+            Col(
+                (file as u8 - b'A') % Square::COLS
+            )
+        }
+    }
+    pub const fn to_file(self) -> char {
+        (b'a' as u8 + self.0) as char
+    }
+
+    pub const fn as_u8(self) -> u8 {
+        self.0
+    }
 }
 
+impl OffsetRow {
+    pub const POS_ONE: OffsetRow = OffsetRow::new(1);
+    pub const NEG_ONE: OffsetRow = OffsetRow::new(-1);
+
+    pub const fn new(row_diff: i8) -> OffsetRow {
+        OffsetRow((row_diff % Square::ROWS as i8) as u8)
+    }
+    pub const fn from_ascending(ascending_row: bool) -> Self {
+        match ascending_row {
+            true => Self::POS_ONE,
+            false => Self::NEG_ONE,
+        }
+    }
+}
+impl OffsetCol {
+    pub const POS_ONE: OffsetCol = OffsetCol::new(1);
+    pub const NEG_ONE: OffsetCol = OffsetCol::new(-1);
+
+    pub const fn new(col_diff: i8) -> OffsetCol {
+        OffsetCol((col_diff % Square::COLS as i8) as u8)
+    }
+
+    pub const fn from_ascending(ascending_col: bool) -> Self {
+        match ascending_col {
+            true => Self::POS_ONE,
+            false => Self::NEG_ONE,
+        }
+    }
+}
 impl OffsetSquare {
     const NEG_ONE: u8 = u8::MAX;
     
-    const fn from_row(row: Row) -> OffsetSquare {
-        OffsetSquare(
+    const fn from_row(row: OffsetRow) -> Self {
+        Self(
             row.0
             .wrapping_mul(Square::COLS)
         )
     }
-    const fn from_col(col: Col) -> OffsetSquare {
-        OffsetSquare(col.0)
+    const fn from_col(col: OffsetCol) -> Self {
+        Self(
+            col.0
+        )
     }
-    const fn new(row: Row, col: Col) -> OffsetSquare {
-        OffsetSquare(
+    const fn new(row: OffsetRow, col: OffsetCol) -> Self {
+        Self(
             row.0
             .wrapping_mul(Square::COLS)
             .wrapping_add(col.0)
@@ -379,64 +524,59 @@ impl OffsetSquare {
     }
 }
 
-pub(crate) mod square_arithmetic {
+mod local_arithmetic {
     use super::{Square,Col,Row};
     use super::{Add, AddAssign, Sub, SubAssign,
     Mul, MulAssign, Div, DivAssign, Rem, RemAssign};
 
-    //impl Add for Square {
-    //    type Output = Square;
-    //    fn add(self, rhs: Square) -> Self::Output {
-    //        let mut value = self.0 + rhs.0;
-    //        value %= Self::MAX_SQUARES;
-    //        Self(value)
-    //    }
-    //}
-    impl Add<Row> for Square {
-        type Output = Square;
-        fn add(self, rhs: Row) -> Self::Output {
-            let mut value = self.0 + rhs.0 * Self::COLS;
-            value %= Self::MAX_SQUARES;
-            Self(value)
-        }
+    impl Add<Row> for u8 {
+        type Output = u8;
+        fn add(self, rhs: Row) -> Self::Output {self + rhs.0}
     }
-    impl Add<Col> for Square {
-        type Output = Square;
-        fn add(self, rhs: Col) -> Self::Output {
-            let mut value = self.0 + rhs.0 * Self::COLS;
-            value %= Self::MAX_SQUARES;
-            Self(value)
-        }
+    impl AddAssign<Row> for u8 {
+        fn add_assign(&mut self, rhs: Row) {*self += rhs.0}
     }
-    impl Sub<Row> for Square {
-        type Output = Square;
-        fn sub(self, rhs: Row) -> Self::Output {
-            Self(self.0 - rhs.0 * Square::MAX_SQUARES)
-        }
+    impl Add<Col> for u8 {
+        type Output = u8;
+        fn add(self, rhs: Col) -> Self::Output {self + rhs.0}
     }
-    impl Sub<Col> for Square {
-        type Output = Square;
-        fn sub(self, rhs: Col) -> Self::Output {
-            Self(self.0 - rhs.0)
-        }
+    impl AddAssign<Col> for u8 {
+        fn add_assign(&mut self, rhs: Col) {*self += rhs.0}
     }
 
-    macro_rules! impl_op {
-        {$t:ty, $rhs:ty, $op:ident, $fn:ident, $equation:expr} => {
-            impl $op<$rhs> for $t {
-                type Output = $t;
-                fn $fn(self, rhs: $rhs) -> Self::Output {
-                    $t::new($equation(self, rhs))
-                }
-            }
-        };
+    impl Sub<Row> for u8 {
+        type Output = u8;
+        fn sub(self, rhs: Row) -> Self::Output {self - rhs.0}
+    }
+    impl SubAssign<Row> for u8 {
+        fn sub_assign(&mut self, rhs: Row) {*self -= rhs.0}
+    }
+    impl Sub<Col> for u8 {
+        type Output = u8;
+        fn sub(self, rhs: Col) -> Self::Output {self - rhs.0}
+    }
+    impl SubAssign<Col> for u8 {
+        fn sub_assign(&mut self, rhs: Col) {*self -= rhs.0}
     }
 
-    impl_op!{Row, u8, Mul, mul, |x, y| (x.0.wrapping_mul(y))}
+    impl Mul<Row> for u8 {
+        type Output = u8;
+        fn mul(self, rhs: Row) -> Self::Output {self * rhs.0}
+    }
+    impl MulAssign<Row> for u8 {
+        fn mul_assign(&mut self, rhs: Row) {*self *= rhs.0}
+    }
+    impl Mul<Col> for u8 {
+        type Output = u8;
+        fn mul(self, rhs: Col) -> Self::Output {self * rhs.0}
+    }
+    impl MulAssign<Col> for u8 {
+        fn mul_assign(&mut self, rhs: Col) {*self *= rhs.0}
+    }
 }
-pub(crate) mod square_offset_arithmetic {
-    use super::{Square, OffsetSquare, Row, Col};
-    use super::{Add,AddAssign,Sub,SubAssign};
+pub(crate) mod square_arithmetic {
+    use super::{Square, OffsetSquare, OffsetRow, OffsetCol, Row, Col};
+    use super::{Add, AddAssign, Sub};
 
     impl Add<OffsetSquare> for Square {
         type Output = Option<Square>;
@@ -465,87 +605,98 @@ pub(crate) mod square_offset_arithmetic {
         }
     }
 
-    impl Add<Row> for OffsetSquare {
-        type Output = OffsetSquare;
-        fn add(self, rhs: Row) -> Self::Output {
-            OffsetSquare(
-                self.0
-                .wrapping_add(
-                    rhs.0 * Square::COLS
-                )
-            )
+    impl Add<OffsetRow> for Row {
+        type Output = Option<Row>;
+        fn add(mut self, rhs: OffsetRow) -> Self::Output {
+            let new_row = self.0
+                    .wrapping_add(rhs.0);
+            if (Row::MIN_ROW..=Row::MAX_ROW).contains(&new_row) {
+                self.0 = self.0
+                    .wrapping_add(rhs.0 * Square::COLS);
+                return Some(self)
+            }
+            None
         }
     }
-    impl AddAssign<Row> for OffsetSquare {
-        fn add_assign(&mut self, rhs: Row) {
-            self.0 = self.0
-                .wrapping_add(
-                    rhs.0 * Square::COLS
-                );
-        }
-    }
-    impl Sub<Row> for OffsetSquare {
-        type Output = OffsetSquare;
-        fn sub(self, rhs: Row) -> Self::Output {
-            OffsetSquare(
-                self.0
-                .wrapping_add(
-                    rhs.0 * Square::COLS
-                )
-            )
-        }
-    }
-    impl SubAssign<Row> for OffsetSquare {
-        fn sub_assign(&mut self, rhs: Row) {
-            self.0 = self.0
-                .wrapping_sub(
-                    rhs.0 * Square::COLS
-                );
+    impl Add<OffsetRow> for Square {
+        type Output = Option<Square>;
+        fn add(mut self, rhs: OffsetRow) -> Self::Output {
+            let new_row = self.get_row().0
+                    .wrapping_add(rhs.0);
+            if (0..=Row::MAX_ROW).contains(&new_row) {
+                self.0 = self.0
+                    .wrapping_add(rhs.0 * Square::COLS);
+                return Some(self)
+            }
+            None
         }
     }
 
-    impl Add<Col> for OffsetSquare {
+    impl Add<OffsetCol> for Square {
+        type Output = Option<Square>;
+        fn add(mut self, rhs: OffsetCol) -> Self::Output {
+            let new_col = self.get_col().0
+                    .wrapping_add(rhs.0);
+            if (0..=Col::MAX_COL).contains(&new_col) {
+                self.0 = self.0
+                    .wrapping_add(rhs.0 * Square::COLS);
+                return Some(self)
+            }
+            None
+        }
+    }
+    impl Add<OffsetCol> for Col {
+        type Output = Option<Col>;
+        fn add(mut self, rhs: OffsetCol) -> Self::Output {
+            let new_col = self.0
+                    .wrapping_add(rhs.0);
+            if (Col::MIN_COL..=Col::MAX_COL).contains(&new_col) {
+                self.0 = self.0
+                    .wrapping_add(rhs.0);
+                return Some(self)
+            }
+            None
+        }
+    }
+
+    impl Sub for Square {
         type Output = OffsetSquare;
-        fn add(self, rhs: Col) -> Self::Output {
+        fn sub(self, rhs: Square) -> Self::Output {
             OffsetSquare(
                 self.0
-                .wrapping_add(rhs.0)
+                    .wrapping_sub(rhs.0)
             )
         }
     }
-    impl AddAssign<Col> for OffsetSquare {
-        fn add_assign(&mut self, rhs: Col) {
-            self.0 = self.0
-                .wrapping_add(rhs.0);
+    impl Sub for Row {
+        type Output = OffsetRow;
+        fn sub(self, rhs: Row) -> Self::Output {
+            OffsetRow(
+                self.0
+                    .wrapping_sub(rhs.0)
+            )
         }
     }
-    impl Sub<Col> for OffsetSquare {
-        type Output = OffsetSquare;
+    impl Sub for Col {
+        type Output = OffsetCol;
         fn sub(self, rhs: Col) -> Self::Output {
-            OffsetSquare(
+            OffsetCol(
                 self.0
-                .wrapping_sub(rhs.0)
+                    .wrapping_mul(rhs.0)
             )
-        }
-    }
-    impl SubAssign<Col> for OffsetSquare {
-        fn sub_assign(&mut self, rhs: Col) {
-            self.0 = self.0
-                .wrapping_sub(rhs.0);
         }
     }
 }
 
 pub struct SquareIterator{
     square: Square,
-    next_square_offset: i8,
+    next_square_offset: OffsetSquare,
     squares_remaining : u8,
 }
 pub struct DiagonalSquareIterator{
-    row: Row,
-    col: Col,
-    ascending_row: bool,
-    ascending_col: bool,
+    square: Square,
+    diagonal_offset: OffsetSquare,
+    squares_remaining: u8,
 }
 pub struct RowIterator{
     row: Row,
@@ -571,58 +722,62 @@ impl Iterator for SquareIterator {
        if self.squares_remaining == 0 {
            return None
        }
-       self.square = self.square.wrapping_add(self.next_square_offset as u8);
-       self.squares_remaining -= 1;
-       Some(self.square)
+       
+       let next_square = self.square + self.next_square_offset;
+       if let Some(square) = next_square {
+           self.square = square;
+           self.squares_remaining -= 1;
+       }
+       next_square
     }
 }
 impl Iterator for DiagonalSquareIterator {
     type Item = Square;
     fn next(&mut self) -> Option<Self::Item> {
-        self.row = match self.row.get_next_row(self.ascending_row) {
-            Some(value) => value,
-            None => return None,
-        };
-        self.col = match self.col.get_next_col(self.ascending_col) {
-            Some(value) => value,
-            None => return None,
-        };
-        Some(Square::new(self.row, self.col))
+        if self.squares_remaining == 0 {
+            return None
+        }
+        
+        let next_square = self.square + self.diagonal_offset;
+        if let Some(square) = next_square {
+            self.square = square;
+            self.squares_remaining -= 1;
+        }
+        next_square
     }
 }
 impl Iterator for RowIterator {
     type Item = Row;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.row.get_next_row(self.ascending) {
-            Some(row) => {
+        self.row
+            .get_next_row(self.ascending)
+            .map(|row| {
                 self.row = row;
-                Some(row)
-            },
-            None => None,
-        }
+                row
+            })
     }
 }
 impl Iterator for ColIterator {
     type Item = Col;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.col.get_next_col(self.ascending) {
-            Some(col) => {
+        self.col
+            .get_next_col(self.ascending)
+            .map(|col| {
                 self.col = col;
-                Some(col)
-            },
-            None => None,
-        }
+                col
+            })
     }
 }
 impl Iterator for KnightIterator {
     type Item = Square;
     fn next(&mut self) -> Option<Self::Item> {
-        while self.index < <u8 as SquareExt>::KNIGHT_OFFSETS.len() {
-            let offset = <u8 as SquareExt>::KNIGHT_OFFSETS[self.index];
+        while self.index < Square::KNIGHT_OFFSETS.len() {
+            let (row_offset, col_offset) = Square::KNIGHT_OFFSETS[self.index];
             self.index += 1;
-            match Square::valid_new(self.row + offset.0, self.col + offset.1) {
-                Some(square) => return Some(square),
-                None => continue,
+
+            if let (Some(row), Some(col)) =
+                (self.row + row_offset, self.col + col_offset) {
+                    return Some(Square::new(row, col))
             }
         }
         None
@@ -631,12 +786,13 @@ impl Iterator for KnightIterator {
 impl Iterator for KingIterator {
     type Item = Square;
     fn next(&mut self) -> Option<Self::Item> {
-        while self.index < <u8 as SquareExt>::KING_OFFSETS.len() {
-            let offset = <u8 as SquareExt>::KING_OFFSETS[self.index];
+        while self.index < Square::KING_OFFSETS.len() {
+            let (row_offset, col_offset) = Square::KING_OFFSETS[self.index];
             self.index += 1;
-            match Square::valid_new(self.row + offset.0, self.col + offset.1) {
-                Some(square) => return Some(square),
-                None => continue,
+
+            if let (Some(row), Some(col)) =
+                (self.row + row_offset, self.col + col_offset) {
+                    return Some(Square::new(row, col))
             }
         }
         None

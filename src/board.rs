@@ -2,7 +2,7 @@
 //!
 //! This module defines the board, castling rights, bitboards, and extended square functionality.
 //! It provides methods to query and update board state, add/remove pieces, and render the board.
-pub(crate) mod pieces;
+pub mod pieces;
 pub mod square;
 
 pub(crate) use pieces::Color;
