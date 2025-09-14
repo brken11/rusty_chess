@@ -5,10 +5,12 @@
 mod castling_rights;
 pub(crate) mod pieces;
 pub mod square;
+pub mod bitboard;
 
 pub(crate) use pieces::Color;
 pub(crate) use castling_rights::{CastlingRights,CastlingRightsExt};
 pub use pieces::Piece;
+pub(crate) use crate::board::bitboard::{Bitboard,BitboardExt,BitboardIter};
 pub(crate) use square::Square;
 pub(crate) use square::SquareExt;
 use crate::board::square::Col;
@@ -20,22 +22,6 @@ pub enum BoardError {
     PieceNotFound,
     /// The target square is already occupied.
     SquareOccupied,
-}
-
-
-/// A bitboard is used to represent piece positions using a 64-bit number.
-pub type Bitboard = u64;
-pub trait BitboardExt{
-    fn get_bitboard_from_row(row: Row) -> Bitboard;
-    fn get_bitboard_from_col(col: Col) -> Bitboard;
-}
-impl BitboardExt for Bitboard {
-    fn get_bitboard_from_row(row: Row) -> Bitboard {
-        0x00000000000000FF << (row * Square::COLS)
-    }
-    fn get_bitboard_from_col(col:Col) -> Bitboard {
-        0x0101010101010101 << col
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -101,13 +87,13 @@ impl Board {
             active_player : Color::White,
             piece_locations : 0xFFFF00000000FFFF,
             data : [
-                // Whites         // Blacks
-                0x00FF000000000000,0x000000000000FF00, // Pawns
-                0x8100000000000000,0x0000000000000081, // Rooks
-                0x4200000000000000,0x0000000000000042, // Knights
-                0x2400000000000000,0x0000000000000024, // Bishops
-                0x0800000000000000,0x0000000000000008, // Queens
-                0x1000000000000000,0x0000000000000010, // Kings
+                // Whites               // Blacks
+                0x00FF_0000_0000_0000,  0x0000_0000_0000_FF00, // Pawns
+                0x8100_0000_0000_0000,  0x0000_0000_0000_0081, // Rooks
+                0x4200_0000_0000_0000,  0x0000_0000_0000_0042, // Knights
+                0x2400_0000_0000_0000,  0x0000_0000_0000_0024, // Bishops
+                0x0800_0000_0000_0000,  0x0000_0000_0000_0008, // Queens
+                0x1000_0000_0000_0000,  0x0000_0000_0000_0010, // Kings
             ],
         }
     }
@@ -123,8 +109,8 @@ impl Board {
             half_move_clock : 0,
             full_move_number : 1,
             active_player : Color::White,
-            piece_locations : 0,
-            data : [0; 12],
+            piece_locations : 0x0000_0000_0000_0000,
+            data : [0x0000_0000_0000_0000; 12],
         }
     }
     pub fn clone(&self) -> Board {
@@ -150,6 +136,9 @@ impl Board {
     /// A `Bitboard` representing the positions of the specified piece.
     pub fn get_bitboard(&self, piece: Piece) -> Bitboard {
         self.data[piece as usize]
+    }
+    fn get_bitboard_mut(&mut self, piece: Piece) -> &mut Bitboard {
+        &mut self.data[piece as usize]
     }
     /// Sets the bitboard for a given piece and updates overall piece locations.
     ///
@@ -181,22 +170,22 @@ impl Board {
     ///
     /// `Some(Piece)` if a piece exists at the square, otherwise `None`.
     pub fn get_piece_at(&self, square: Square) -> Option<Piece> {
-        if self.piece_locations & (1 << square) == 0 {
+        if self.piece_locations.not_in_bitboard(square) {
             return None
         }
         for piece in Piece::iter() {
-            if self.data[piece as usize] & (1 << square) != 0 {
+            if self.get_bitboard(piece).square_in_bitboard(square) {
                 return Some(piece);
             }
         }
         None
     }
     pub fn get_piece_color_at(&self, square: Square) -> Option<Color> {
-        if self.piece_locations & (1 << square) == 0 {
+        if self.piece_locations.not_in_bitboard(square) {
             return None
         }
         for piece in Piece::iter() {
-            if self.data[piece as usize] & (1 << square) != 0 {
+            if self.get_bitboard(piece).square_in_bitboard(square) {
                 return Some(piece.get_color());
             }
         }
@@ -212,7 +201,7 @@ impl Board {
     ///
     /// `true` if a piece is present, otherwise `false`.
     pub fn is_square_occupied(&self, square: Square) -> bool {
-        self.piece_locations & (1 << square) != 0
+        self.piece_locations.square_in_bitboard(square)
     }
     /// Checks if piece at a given square
     ///
@@ -225,7 +214,7 @@ impl Board {
     ///
     /// `bool` - if the piece at the square
     pub fn is_piece_at(&self, square: Square, piece: Piece) -> bool {
-        self.data[piece as usize] & (1 << square) != 0
+        self.get_bitboard(piece).square_in_bitboard(square)
     }
     /// Retrieves the piece at the specified square if it matches the given color.
     ///
@@ -238,10 +227,13 @@ impl Board {
     ///
     /// `Some(Piece)` if a matching piece is found, otherwise `None`.
     pub fn get_colored_piece_at(&self, square: Square, color: Color) -> Option<Piece> {
+        if self.piece_locations.not_in_bitboard(square) {
+            return None
+        }
         match color {
             Color::White => {
                 for piece in Piece::iter_white_pieces(){
-                    if self.data[piece as usize] & (1 << square) != 0 {
+                    if self.get_bitboard(piece).square_in_bitboard(square) {
                         return Some(piece)
                     }
                 }
@@ -249,7 +241,7 @@ impl Board {
             },
             Color::Black => {
                 for piece in Piece::iter_black_pieces(){
-                    if self.data[piece as usize] & (1 << square) != 0 {
+                    if self.get_bitboard(piece).square_in_bitboard(square) {
                         return Some(piece)
                     }
                 }
@@ -268,11 +260,9 @@ impl Board {
     /// A vector of squares where the piece is found.
     pub fn find_piece_positions(&self, piece: Piece) -> Vec<Square> {
         let mut positions = Vec::new();
-        let mut bitboard = self.data[piece as usize];
-        while bitboard != 0{
-            let pos = bitboard.trailing_zeros() as u8;
-            positions.push(pos);
-            bitboard &= !(1 << pos);
+        let bitboard = self.get_bitboard(piece);
+        for square in bitboard.squares() {
+            positions.push(square)
         }
         positions
     }
@@ -295,8 +285,8 @@ impl Board {
     /// `Some(Square)` if found, otherwise `None`.
     pub fn king_square_by_color(&self, color: Color) -> Option<Square> {
         match match color {
-            Color::White => self.data[Piece::WhiteKing as usize].trailing_zeros() as Square,
-            Color::Black => self.data[Piece::BlackKing as usize].trailing_zeros() as Square
+            Color::White => self.get_bitboard(Piece::WhiteKing).trailing_zeros() as Square,
+            Color::Black => self.get_bitboard(Piece::BlackKing).trailing_zeros() as Square,
         } {
             Square::MAX_SQUARES => None,
             square => Some(square),
@@ -332,11 +322,13 @@ impl Board {
     ///
     /// `Ok(())` if removal succeeds, otherwise a `BoardError`.
     pub fn remove_piece_at(&mut self, square: Square, piece: Piece) -> Result<(), BoardError>{
-        if self.piece_locations & (1 << square) == 0 {
+        if self.piece_locations.not_in_bitboard(square) {
             return Err(BoardError::PieceNotFound);
         }
-        self.data[piece as usize] &= !(1 << square);
-        self.piece_locations &= !(1 << square);
+        self.get_bitboard_mut(piece)
+            .remove_square(square);
+        self.piece_locations
+            .remove_square(square);
         Ok(())
     }
     /// Adds a piece to the specified square.
@@ -350,11 +342,13 @@ impl Board {
     ///
     /// `Ok(())` if the piece is added successfully, otherwise a `BoardError`.
     pub fn add_piece_at(&mut self, square: Square, piece: Piece) -> Result<(), BoardError>{
-        if self.piece_locations & (1 << square) != 0 {
+        if self.piece_locations.square_in_bitboard(square) {
             return Err(BoardError::SquareOccupied);
         }
-        self.data[piece as usize] |= 1 << square;
-        self.piece_locations |= 1 << square;
+        self.get_bitboard_mut(piece)
+            .add_square(square);
+        self.piece_locations
+            .add_square(square);
         Ok(())
     }
 
@@ -548,10 +542,10 @@ impl Board {
     ///
     /// A bitboard representing clear squares along the file.
     pub fn sees_down_file(&self, square:Square, ascending: bool) -> Bitboard {
-        let mut vision_board : Bitboard = 0;
+        let mut vision_board = Bitboard::new_bitboard();
         for s in square.get_row_squares(ascending) {
-            vision_board |= 1 << s;
-            if self.piece_locations & (1 << s) != 0 {
+            vision_board.add_square(s);
+            if self.piece_locations.square_in_bitboard(s) {
                 break;
             }
         }
@@ -570,10 +564,10 @@ impl Board {
     ///
     /// A bitboard representing clear squares along the rank.
     pub fn sees_down_rank(&self, square:Square, ascending: bool) -> Bitboard {
-        let mut vision_board : Bitboard = 0;
+        let mut vision_board  = Bitboard::new_bitboard();
         for s in square.get_col_squares(ascending) {
-            vision_board |= 1 << s;
-            if self.piece_locations & (1 << s) != 0 {
+            vision_board.add_square(s);
+            if self.piece_locations.square_in_bitboard(s) {
                 break;
             };
         }
@@ -593,10 +587,10 @@ impl Board {
     ///
     /// A bitboard representing clear squares along the diagonal.
     pub fn sees_down_diagonal(&self, square:Square, ascending_row: bool, ascending_col: bool) -> Bitboard {
-        let mut vision_board : Bitboard = 0;
+        let mut vision_board  = Bitboard::new_bitboard();
         for diagonal_square in square.iter_diagonal(ascending_row, ascending_col) {
-            vision_board |= 1 << diagonal_square;
-            if self.piece_locations & (1 << diagonal_square) != 0 {
+            vision_board.add_square(diagonal_square);
+            if self.piece_locations.square_in_bitboard(diagonal_square) {
                 break;
             }
         }
@@ -612,9 +606,9 @@ impl Board {
     ///
     /// A bitboard representing the knight's move possibilities.
     pub fn sees_like_knight(&self, square:Square) -> Bitboard {
-        let mut vision_board : Bitboard = 0;
+        let mut vision_board  = Bitboard::new_bitboard();
         for knight_square in square.iter_knight_offsets(){
-            vision_board |= 1 << knight_square;
+            vision_board.add_square(knight_square);
         }
         vision_board
     }
@@ -637,15 +631,15 @@ impl Board {
     /// - An optional square where a capturable piece is found.
     pub fn clear_n_capture_down_file(&self, square:Square, ascending: bool, color: Color) -> (Bitboard, Option<Square>) {
         //Returns a bitboard of clear moves (without capture) and an Option of Square if a capturable piece is present.
-        let mut vision_board : Bitboard = 0;
+        let mut vision_board = Bitboard::new_bitboard();
         for s in square.get_row_squares(ascending) {
-            if self.piece_locations & (1 << s) != 0 {
+            if self.piece_locations.square_in_bitboard(s) {
                 return match self.get_colored_piece_at(s, color) {
                     Some(_) => (vision_board, Some(s)),
                     None => (vision_board, None),
                 }
             }
-            vision_board |= 1 << s;
+            vision_board.add_square(s);
         }
         (vision_board, None)
     }
@@ -666,15 +660,15 @@ impl Board {
     /// - A bitboard of clear squares.
     /// - An optional square where a capturable piece is found.
     pub fn clear_n_capture_down_rank(&self, square:Square, ascending: bool, color: Color) -> (Bitboard, Option<Square>) {
-        let mut vision_board : Bitboard = 0;
+        let mut vision_board = Bitboard::new_bitboard();
         for s in square.get_col_squares(ascending) {
-            if self.piece_locations & (1 << s) != 0 {
+            if self.piece_locations.square_in_bitboard(s) {
                 return match self.get_colored_piece_at(s, color) {
                     Some(_) => (vision_board, Some(s)),
                     None => (vision_board, None),
                 }
             }
-            vision_board |= 1 << s;
+            vision_board.add_square(s);
         }
         (vision_board, None)
     }
@@ -696,16 +690,16 @@ impl Board {
     /// - A bitboard of clear squares along the diagonal.
     /// - An optional square where a capturable piece is found.
     pub fn clear_n_capture_down_diagonal(&self, square:Square, ascending_row: bool, ascending_col: bool, color: Color) -> (Bitboard, Option<Square>) {
-        let mut vision_board : Bitboard = 0;
+        let mut vision_board = Bitboard::new_bitboard();
         for diagonal_square in square.iter_diagonal(ascending_row, ascending_col) {
             // println!("{}", diagonal_square.to_square_string());
-            if self.piece_locations & (1 << diagonal_square) != 0 {
+            if self.piece_locations.square_in_bitboard(diagonal_square) {
                 return match self.get_colored_piece_at(diagonal_square, color) {
                     Some(_) => (vision_board, Some(diagonal_square)),
                     None => (vision_board, None),
                 }
             }
-            vision_board |= 1 << diagonal_square;
+            vision_board.add_square(diagonal_square);
         }
         (vision_board, None)
     }
@@ -721,20 +715,19 @@ impl Board {
     /// A vector of `(Piece, Square)` tuples for each piece found.
     pub fn get_pieces_at_bitboard(&self, bitboard: Bitboard) -> Vec<(Piece, Square)> {
         let mut pieces : Vec<(Piece,Square)> = Vec::new();
-        let mut bitboard = bitboard;
-        while bitboard != 0 {
-            let pos: Square = bitboard.trailing_zeros() as u8;
-            if let Some(piece) = self.get_piece_at(pos) {pieces.push((piece,pos));}
-            bitboard &= !(1<<pos);
+        for square in bitboard.squares() {
+            if let Some(piece) = self.get_piece_at(square) {
+                pieces.push((piece, square));
+            }
         }
         pieces
     }
     pub fn get_piece_squares_from_bitboard(&self, piece: Piece, mut bitboard: Bitboard) -> Vec<Square> {
         let mut squares: Vec<Square> = Vec::new();
-        while bitboard != 0 {
-            let pos: Square = bitboard.trailing_zeros() as u8;
-            if self.is_piece_at(pos, piece) {squares.push(pos);}
-            bitboard &= !(1 << pos);
+        for square in bitboard.squares() {
+            if self.is_piece_at(square, piece) {
+                squares.push(square);
+            }
         }
         squares
     }
@@ -746,7 +739,10 @@ impl Board {
     pub fn get_active_pieces(&self) -> Vec<(Piece, Square)> {
         let mut pieces : Vec<(Piece,Square)> = Vec::new();
         for piece in Piece::iter_color_pieces(&self.active_player){
-            pieces.extend(self.get_pieces_at_bitboard(self.data[piece.to_index()]));
+            pieces.extend(
+            self.get_pieces_at_bitboard(
+                    self.get_bitboard(piece)
+                ));
         }
         pieces
     }
