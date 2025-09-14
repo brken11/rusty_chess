@@ -1,4 +1,5 @@
-use crate::board::square::{Square, SquareExt};
+use super::{Square, Row, Col, OffsetSquare, OffsetRow,
+        OffsetCol,square_arithmetic};
 use crate::rules::CastleType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,7 +25,9 @@ pub enum Piece {
 }
 
 impl Piece {
-    const PIECES: [Piece; 12] = [
+    pub const PIECE_TYPES: usize = 6;
+    pub const PIECE_COUNT: usize = 12;
+    const PIECES: [Piece; Self::PIECE_COUNT] = [
         Piece::WhitePawn, Piece::BlackPawn,
         Piece::WhiteRook, Piece::BlackRook,
         Piece::WhiteKnight, Piece::BlackKnight,
@@ -32,7 +35,7 @@ impl Piece {
         Piece::WhiteQueen, Piece::BlackQueen,
         Piece::WhiteKing, Piece::BlackKing,
     ];
-    const PIECES_WITH_COLOR: [(Piece,Color); 12] = [
+    const PIECES_WITH_COLOR: [(Piece,Color); Self::PIECE_COUNT] = [
         (Piece::WhitePawn, Color::White), (Piece::BlackPawn, Color::Black),
         (Piece::WhiteRook, Color::White), (Piece::BlackRook, Color::Black),
         (Piece::WhiteKnight, Color::White),(Piece::BlackKnight, Color::Black),
@@ -40,7 +43,7 @@ impl Piece {
         (Piece::WhiteQueen, Color::White), (Piece::BlackQueen, Color::Black),
         (Piece::WhiteKing, Color::White), (Piece::BlackKing, Color::Black),
     ];
-    const WHITE_PIECES: [Piece; 6] = [
+    const WHITE_PIECES: [Piece; Self::PIECE_TYPES] = [
         Piece::WhitePawn,
         Piece::WhiteRook,
         Piece::WhiteKnight,
@@ -48,7 +51,7 @@ impl Piece {
         Piece::WhiteQueen,
         Piece::WhiteKing,
     ];
-    const BLACK_PIECES: [Piece; 6] = [
+    const BLACK_PIECES: [Piece; Self::PIECE_TYPES] = [
         Piece::BlackPawn,
         Piece::BlackRook,
         Piece::BlackKnight,
@@ -169,7 +172,7 @@ impl Piece {
     }
 
     pub fn to_index(&self) -> usize {
-        *self as usize
+        (*self as usize) % Piece::PIECE_COUNT
     }
 
     pub fn from_index(index: usize) -> Option<Piece> {
@@ -223,19 +226,15 @@ impl Color {
             Color::Black => Piece::BlackPawn,
         }
     }
-    pub const fn get_pawn_direction(&self) -> u8 {
-        /* Note, this is set to 8 as to make adding or 'subtracting' from base square to be
-         * as simple as possible for pawn calculating the pawns destination square.
-         */
-        match self{
-            Color::White => 248, // -8 for u8s
-            Color::Black => 8,
-        }
+    pub const fn get_pawn_direction(&self) -> OffsetSquare {
+        OffsetSquare::from_row(
+            self.get_pawn_row_offset()
+        )
     }
-    pub const fn get_pawn_row_offset(&self) -> u8 {
+    pub const fn get_pawn_row_offset(&self) -> OffsetRow {
         match self{
-            Color::White => 255, // -1 for u8s
-            Color::Black => 1,
+            Color::White => OffsetRow::new(-1), // -1 for u8s
+            Color::Black => OffsetRow::new(1),
         }
     }
     pub const fn is_pawn_ascending(&self) -> bool {
@@ -244,22 +243,22 @@ impl Color {
             Color::Black => true,
         }
     }
-    pub const fn get_back_rank_row(&self) -> u8 {
+    pub const fn get_back_rank_row(&self) -> Row {
         match self {
-            Color::White => 7,
-            Color::Black => 0,
+            Color::White => Row::new(Row::MAX_ROW),
+            Color::Black => Row::new(Row::MIN_ROW),
         }
     }
-    pub const fn get_pawn_starting_row(&self) -> u8 {
+    pub const fn get_pawn_starting_row(&self) -> Row {
         match self{
-            Color::White => 6,
-            Color::Black => 1,
+            Color::White => Row::new(Row::MAX_ROW - 1),
+            Color::Black => Row::new(Row::MIN_ROW + 1),
         }
     }
-    pub const fn get_pawn_promotion_row(&self) -> u8 {
+    pub const fn get_pawn_promotion_row(&self) -> Row {
         match self{
-            Color::White => 0,
-            Color::Black => 7,
+            Color::White => Row::new(Row::MIN_ROW),
+            Color::Black => Row::new(Row::MAX_ROW),
         }
     }
     pub const fn get_promotion_pieces(&self) -> [Piece; 4] {
@@ -306,8 +305,14 @@ impl Color {
     }
     pub const fn king_castle_target(&self, castle_type: CastleType) -> Square {
         match self {
-            Color::White => match castle_type {CastleType::KingSide => Square::G1, CastleType::QueenSide => Square::C1},
-            Color::Black => match castle_type {CastleType::KingSide => Square::G8, CastleType::QueenSide => Square::C8},
+            Color::White => match castle_type {
+                CastleType::KingSide => Square::G1,
+                CastleType::QueenSide => Square::C1
+            },
+            Color::Black => match castle_type {
+                CastleType::KingSide => Square::G8,
+                CastleType::QueenSide => Square::C8
+            },
         }
     }
     pub const fn iter(&self) -> ColorIter {

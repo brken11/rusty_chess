@@ -10,7 +10,7 @@ use crate::board::Color;
 ///
 
 /// # Type alias of a Square
-pub type Square = u8;
+pub type Square = crate::board::Square;
 /// # Type alias of a Column
 pub type Col = u8;
 /// # Type alias of a Row

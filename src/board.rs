@@ -10,11 +10,13 @@ pub mod bitboard;
 pub(crate) use pieces::Color;
 pub(crate) use castling_rights::{CastlingRights,CastlingRightsExt};
 pub use pieces::Piece;
+pub(crate) use square::Square as Square;
 pub(crate) use crate::board::bitboard::{Bitboard,BitboardExt,BitboardIter};
-pub(crate) use square::Square;
 pub(crate) use square::SquareExt;
-use crate::board::square::Col;
-use crate::board::square::Row;
+pub(crate) use square::OffsetSquare;
+pub(crate) use square::square_arithmetic;
+pub(crate) use crate::board::square::{Row, OffsetRow};
+pub(crate) use crate::board::square::{Col, OffsetCol};
 
 /// Errors that may occur when performing board operations.
 pub enum BoardError {
@@ -45,7 +47,7 @@ pub struct Board {
 ///
 /// Assumes 8 * 8 matrix due to macro/const_fn limitations
 ///
-/// If `Row::MAX_ROWS` or `Col::MAX_COLs` is changed
+/// If `Board::ROWS` or `Board::COLS` is changed
 /// - `rusty_chess::board::BOARD_TEMPLATE` will need to be fixed,
 /// - the `rusty_chess:board::format_board!` macro expansion will need to be fixed as well.
 ///
@@ -64,6 +66,11 @@ const BOARD_TEMPLATE: &'static str =
    └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘";
 
 impl Board {
+
+    /// Number of Rows on board
+    const ROWS: u8 = 8;
+    /// Number of Columns on board
+    const COLS: u8 = 8;
 
     /// Creates a board with the standard starting position.
     ///

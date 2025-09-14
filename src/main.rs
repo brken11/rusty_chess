@@ -29,9 +29,17 @@ fn main() {
     let mut b = Board::std_new();
     let mut e = Board::empty_new();
     println!("{}", b.to_string());
-    println!("{}", if let Some(square) = b.king_square() {square} else {255});
+    if let Some(square) = b.king_square() {
+        println!("{square}");
+    } else {
+        println!("No king square");
+    }
     println!("{}", e.to_string());
-    println!("{}", if let Some(square) = e.king_square() {square} else {255});
+    if let Some(square) = e.king_square() {
+        println!("{square}");
+    } else {
+        println!("No king square");
+    }
     // println!("Diagonal test false true");
     // b.sees_down_diagonal(8, false, true);
     // println!("Diagonal test false false");
