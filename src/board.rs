@@ -9,9 +9,10 @@ pub(crate) use pieces::Color;
 pub use pieces::Piece;
 pub(crate) use square::Square as Square;
 pub(crate) use square::SquareExt;
+pub(crate) use square::OffsetSquare;
 pub(crate) use square::square_arithmetic;
-use crate::board::square::Col;
-use crate::board::square::Row;
+pub(crate) use crate::board::square::{Row, OffsetRow};
+pub(crate) use crate::board::square::{Col, OffsetCol};
 
 /// Errors that may occur when performing board operations.
 pub enum BoardError {

@@ -3,7 +3,8 @@ use std::fmt;
 use std::fmt::Display;
 
 use crate::board::pieces::{Color, Piece};
-use crate::board::square::{Col, Row, Square, SquareExt};
+use crate::board::{Row, Col, Square, OffsetRow, OffsetCol, OffsetSquare,
+        square_arithmetic};
 use crate::board::{Bitboard, BitboardExt, Board, CastlingRightsExt};
 use crate::chess_moves::MoveError::{
     CastleNotPermmited, IllegalPromotion, KingCannotSeeRook, LeavesKingInCheck,
@@ -74,7 +75,7 @@ pub enum MoveError {
     IllegalPromotion,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Disambiguity {
     None,
     Rank(Row),
@@ -114,18 +115,6 @@ const BLACK_QUEENSIDE_CASTLE: ChessMove = ChessMove {
     target: Color::Black.king_castle_target(CastleType::QueenSide),
     meta_data: MoveData::Castling,
 };
-
-impl PartialEq for Disambiguity {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Disambiguity::None, Disambiguity::None) => true,
-            (Disambiguity::Rank(row1), Disambiguity::Rank(row2)) => row1 == row2,
-            (Disambiguity::File(col1), Disambiguity::File(col2)) => col1 == col2,
-            (Disambiguity::Square(square1), Disambiguity::Square(square2)) => square1 == square2,
-            (_, _) => false,
-        }
-    }
-}
 
 impl ChessMove {
     fn new(piece: Piece, origin: Square, target: Square, special: MoveData) -> ChessMove {
@@ -316,6 +305,12 @@ impl ChessMove {
         match piece {
             Piece::WhitePawn | Piece::BlackPawn => {
                 let row_offset = piece.get_color().get_pawn_row_offset();
+                let is_capture =
+                    board.get_piece_color_at(target)
+                    .map_or(
+                        false,
+                        |color| {color != piece.get_color()}
+                    );
                 if let Some(origin) = Square::valid_new(row - row_offset, col) {
                     if let Ok(chess_move) =
                         ChessMove::valid_new(board, piece, origin, target, is_promotion)

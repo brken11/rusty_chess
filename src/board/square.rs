@@ -1,7 +1,7 @@
 use super::Board;
 
 use std::ops::{Add, AddAssign, Sub, SubAssign,
-    Mul, MulAssign, Div, DivAssign, Rem, RemAssign};
+    Mul, MulAssign, Div, DivAssign, Rem, RemAssign, Shl, ShlAssign};
 /// A square on the chessboard represented as a value between 0 and 63 (inclusive).
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -338,7 +338,10 @@ pub trait ColExt {
 impl Row {
     pub const MAX_ROW: u8 = Square::ROWS - 1;
     pub const MIN_ROW: u8 = 0;
-    pub const fn new_row(row: u8) -> Option<Row> {
+    pub const fn new(row: u8) -> Self {
+        Self(row % Square::ROWS)
+    }
+    pub const fn new_row(row: u8) -> Option<Self> {
         if row <= Row::MAX_ROW {
             return Some(Row(row))
         }
@@ -403,6 +406,9 @@ impl Row {
 impl Col {
     pub const MAX_COL: u8 = Square::COLS - 1;
     pub const MIN_COL: u8 = 0;
+    pub const fn new(col: u8) -> Self {
+        Self(col % Square::COLS)
+    }
     pub const fn new_col(col: u8) -> Option<Col> {
         if col <= Col::MAX_COL {
             return Some(Col(col))
@@ -502,20 +508,18 @@ impl OffsetCol {
     }
 }
 impl OffsetSquare {
-    const NEG_ONE: u8 = u8::MAX;
-    
-    const fn from_row(row: OffsetRow) -> Self {
+    pub const fn from_row(row: OffsetRow) -> Self {
         Self(
             row.0
             .wrapping_mul(Square::COLS)
         )
     }
-    const fn from_col(col: OffsetCol) -> Self {
+    pub const fn from_col(col: OffsetCol) -> Self {
         Self(
             col.0
         )
     }
-    const fn new(row: OffsetRow, col: OffsetCol) -> Self {
+    pub const fn new(row: OffsetRow, col: OffsetCol) -> Self {
         Self(
             row.0
             .wrapping_mul(Square::COLS)
@@ -527,7 +531,7 @@ impl OffsetSquare {
 mod local_arithmetic {
     use super::{Square,Col,Row};
     use super::{Add, AddAssign, Sub, SubAssign,
-    Mul, MulAssign, Div, DivAssign, Rem, RemAssign};
+    Mul, MulAssign, Shl, ShlAssign};
 
     impl Add<Row> for u8 {
         type Output = u8;
@@ -572,6 +576,25 @@ mod local_arithmetic {
     }
     impl MulAssign<Col> for u8 {
         fn mul_assign(&mut self, rhs: Col) {*self *= rhs.0}
+    }
+
+    impl Shl<Square> for u64 {
+        type Output = u64;
+        fn shl(self, rhs: Square) -> Self::Output {
+            self << rhs.0
+        }
+    }
+    impl Shl<Row> for u64 {
+        type Output = u64;
+        fn shl(self, rhs: Row) -> Self::Output {
+            self << (rhs.0 * Square::COLS)
+        }
+    }
+    impl Shl<Col> for u64 {
+        type Output = u64;
+        fn shl(self, rhs: Col) -> Self::Output {
+            self << rhs.0
+        }
     }
 }
 pub(crate) mod square_arithmetic {
