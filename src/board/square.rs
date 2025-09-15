@@ -1,7 +1,7 @@
 use super::Board;
 
 use std::ops::{Add, AddAssign, Sub, SubAssign,
-    Mul, MulAssign, Div, DivAssign, Rem, RemAssign, Shl, ShlAssign};
+    Mul, MulAssign, Div, DivAssign, Rem, RemAssign, Shl, ShlAssign, Neg};
 /// A square on the chessboard represented as a value between 0 and 63 (inclusive).
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -30,72 +30,6 @@ pub struct OffsetRow(u8);
 pub struct OffsetCol(u8);
 
 /// Provides extended functionality for chess board squares.
-pub trait SquareExt {
-    /// Size of Square bounds
-    const MAX_SQUARES: Square;
-    /// Number of Rows
-    const ROWS: u8;
-    /// Number of Columns
-    const COLS: u8;
-    /// Squares
-    const A1: Square; const A2: Square; const A3: Square; const A4: Square; const A5: Square; const A6: Square; const A7: Square; const A8: Square;
-    const B1: Square; const B2: Square; const B3: Square; const B4: Square; const B5: Square; const B6: Square; const B7: Square; const B8: Square;
-    const C1: Square; const C2: Square; const C3: Square; const C4: Square; const C5: Square; const C6: Square; const C7: Square; const C8: Square;
-    const D1: Square; const D2: Square; const D3: Square; const D4: Square; const D5: Square; const D6: Square; const D7: Square; const D8: Square;
-    const E1: Square; const E2: Square; const E3: Square; const E4: Square; const E5: Square; const E6: Square; const E7: Square; const E8: Square;
-    const F1: Square; const F2: Square; const F3: Square; const F4: Square; const F5: Square; const F6: Square; const F7: Square; const F8: Square;
-    const G1: Square; const G2: Square; const G3: Square; const G4: Square; const G5: Square; const G6: Square; const G7: Square; const G8: Square;
-    const H1: Square; const H2: Square; const H3: Square; const H4: Square; const H5: Square; const H6: Square; const H7: Square; const H8: Square;
-    /// Array of square labels, from "a8","b8","c8" ... to ..., "f1", "g1", "h1".
-    const SQUARES: [&'static str; 64];
-    /// Returns the row (0-based) for the square.
-    const KNIGHT_OFFSETS: &'static[(Row, Col); 8];
-    const KING_OFFSETS: &'static[(Row, Col); 8];
-    fn get_row(&self) -> Row;
-    /// Returns an iterator over rows relative to this square.
-    ///
-    /// If `ascending` is true, the iterator starts at the next row up to the top (row 7).
-    /// Otherwise, it iterates from row 0 up to the current row (exclusive).
-    fn get_rows(&self, ascending : bool) -> RowIterator;
-    /// Returns an iterator over squares in the same column (file) in the given direction.
-    fn get_row_squares(&self, ascending : bool) -> SquareIterator;
-    /// Returns the column (0-based) for the square.
-    fn get_col(&self) -> Col;
-    /// Returns an iterator over columns relative to this square.
-    fn get_cols(&self, ascending : bool) -> ColIterator;
-    /// Returns an iterator over squares in the same row (rank) in the given direction.
-    fn get_col_squares(&self, ascending : bool) -> SquareIterator;
-    /// Returns a tuple of (row, column) for the square.
-    fn get_pos_pair(&self) -> (Row, Col);
-    /// Returns the index of the square as a `usize`.
-    fn get_index(&self) -> usize;
-    /// Returns the file (column letter, e.g., 'a' through 'h') for the square.
-    fn get_file(&self) -> char;
-    /// Returns the rank (1-based, e.g., 1 through 8) for the square.
-    fn get_rank(&self) -> u8;
-    /// Creates a new square from the given row and column.
-    fn new(row : Row, col : Col) -> Square;
-    /// Creates a new square from the given row and column if they are valid, otherwise returns `None`.
-    fn valid_new(row : Row, col : Col) -> Option<Square>;
-    /// Returns the absolute difference is rows between `Square`s
-    fn row_diff(&self, other_square: Square) -> u8;
-    /// Returns the absolute difference in columns between `Square`s
-    fn col_diff(&self, other_square: Square) -> u8;
-    /// Returns an iterator over the file letters.
-    fn iter_files() -> impl Iterator<Item = char>;
-    /// Returns an iterator over the rank numbers.
-    fn iter_ranks() -> impl Iterator<Item = u8>;
-    /// Returns an iterator over all squares (0 to 63).
-    fn iter_squares() -> impl Iterator<Item = Square>;
-    /// Returns an iterator over the squares a knight can reach from the Square
-    fn iter_knight_offsets(&self) -> impl Iterator<Item = Square>;
-    fn iter_king_offsets(&self) -> impl Iterator<Item=Square>;
-    /// Returns the string slice representation of the square (e.g., "e4").
-    fn to_square_str(&self) -> &str;
-    /// Returns the string representation of the square.
-    fn to_square_string(&self) -> String;
-    fn iter_diagonal(&self, ascending_row: bool, ascending_col: bool) -> DiagonalSquareIterator;
-}
 impl Square {
     /// Size of Square bounds
     pub const MAX_SQUARES: u8 = Square::ROWS * Square::COLS;
@@ -134,6 +68,33 @@ impl Square {
         (OffsetRow::new(0), OffsetCol::new(-1)), (OffsetRow::new(0), OffsetCol::new(1)),
         (OffsetRow::new(1), OffsetCol::new(-1)), (OffsetRow::new(1), OffsetCol::new(0)), (OffsetRow::new(1), OffsetCol::new(1)),
     ];
+
+
+    /// Creates a new square from the given row and column.
+    pub const fn new(row : Row, col : Col) -> Square {
+        Square(
+            row.0 * Square::COLS
+                + col.0
+        )
+    }
+    /// Creates a new square from the given row and column if they are valid, otherwise returns `None`.
+    pub fn valid_new(row : u8, col : u8) -> Option<Square> {
+        if (Row::MIN_ROW..=Row::MAX_ROW).contains(&row)
+            && (Col::MIN_COL..=Col::MAX_COL).contains(&col) {
+            return Some(Square::new(Row(row),Col(col)))
+        }
+        None
+    }
+    /// Returns u8 literal inside the struct
+    pub fn inner(self) -> u8 {
+        self.0
+    }
+    /// Creates square from literal,
+    /// out of range values are wrapped.
+    pub fn from_inner(inner: u8) -> Self {
+        Square(inner % Square::MAX_SQUARES)
+    }
+
     /// Returns the row (0-based) for the square.
     pub(crate) const fn get_row(self) -> Row {
         Row(self.0 / Square::ROWS)
@@ -209,21 +170,7 @@ impl Square {
         self.get_row()
             .to_rank()
     }
-    /// Creates a new square from the given row and column.
-    pub(crate) const fn new(row : Row, col : Col) -> Square {
-        Square(
-            row.0 * Square::COLS
-            + col.0
-        )
-    }
-    /// Creates a new square from the given row and column if they are valid, otherwise returns `None`.
-    pub fn valid_new(row : u8, col : u8) -> Option<Square> {
-        if (Row::MIN_ROW..=Row::MAX_ROW).contains(&row)
-            && (Col::MIN_COL..=Col::MAX_COL).contains(&col) {
-            return Some(Square::new(Row(row),Col(col)))
-        }
-        None
-    }
+
     /// Returns the absolute difference is rows between `Square`s
     pub fn row_diff(self, other_square: Square) -> u8 {
         self.get_row()
@@ -248,10 +195,14 @@ impl Square {
     pub fn iter_ranks() -> impl Iterator<Item = u8> {Row::iter_ranks()}
     /// Returns an iterator over all squares (0 to 63).
     pub fn iter_squares() -> impl Iterator<Item = Square> {
-    (0..Square::MAX_SQUARES)
-        .into_iter()
-        .map(|i| Square(i))
+        (0..Square::MAX_SQUARES)
+            .into_iter()
+            .map(|i| Square(i))
     }
+    /// Returns an iterator over all rows (0 to 7 inclusive)
+    pub fn iter_rows() -> impl Iterator<Item = Row> {Row::iter_rows()}
+    /// Returns an iterator over all columns (0 to 7 inclusive)
+    pub fn iter_cols() -> impl Iterator<Item = Col> {Col::iter_cols()}
     /// Returns an iterator over the squares a knight can reach from the Square
     pub const fn iter_knight_offsets(&self) -> impl Iterator<Item=Square> {
         KnightIterator{
@@ -293,48 +244,7 @@ impl Square {
         }
     }
 }
-pub trait RowExt {
-    const MAX_ROW: u8;
-    fn new_row(row_as_u8: u8) -> Option<Row>;
-    ///
-    ///
-    /// # Arguments
-    ///
-    /// * `ascending`: whether you want the next value to be greater (if true) or lesser
-    ///   (if false) than the starting row.
-    ///
-    /// returns: Option<Row>
-    ///
-    /// # Examples
-    /// ```
-    /// let r:Row = 2; assert!(r.get_next_row(true), 3); assert!(r.get_next_row(false), 1);
-    /// let r:Row = 5; assert!(r.get_next_row(true), 6); assert!(r.get_next_row(false), 4);
-    /// ```
-    fn get_next_row(&self, ascending: bool) -> Option<Row>;
-    fn from_rank(rank: u8) -> Self;
-    fn to_rank(self) -> u8;
-}
-pub trait ColExt {
-    const MAX_COL: u8;
-    fn new_col(col_as_u8: u8) -> Option<Col>;
-    ///
-    ///
-    /// # Arguments
-    ///
-    /// * `ascending`: whether you want the next value to be greater (if true) or lesser
-    ///   (if false) than the starting row.
-    ///
-    /// returns: Option<Row>
-    ///
-    /// # Examples
-    /// ```
-    /// let c:Col = 2; assert!(c.get_next_col(true), 3); assert!(c.get_next_col(false), 1);
-    /// let c:Col = 5; assert!(c.get_next_col(true), 6); assert!(c.get_next_col(false), 4);
-    /// ```
-    fn get_next_col(&self, ascending: bool) -> Option<Col>;
-    fn from_file(file: char) -> Self;
-    fn to_file(self) -> char;
-}
+
 impl Row {
     pub const MAX_ROW: u8 = Square::ROWS - 1;
     pub const MIN_ROW: u8 = 0;
@@ -346,6 +256,9 @@ impl Row {
             return Some(Row(row))
         }
         None
+    }
+    pub const fn as_left_bit_shift(self) -> u8 {
+        self.0.wrapping_mul(Square::COLS)
     }
     ///
     ///
@@ -403,6 +316,7 @@ impl Row {
         self.0
     }
 }
+
 impl Col {
     pub const MAX_COL: u8 = Square::COLS - 1;
     pub const MIN_COL: u8 = 0;
@@ -414,6 +328,9 @@ impl Col {
             return Some(Col(col))
         }
         None
+    }
+    pub const fn as_left_bit_shift(self) -> u8 {
+        self.0
     }
     ///
     ///
@@ -491,6 +408,9 @@ impl OffsetRow {
             false => Self::NEG_ONE,
         }
     }
+    pub const fn reverse(self) -> Self {
+        OffsetRow(self.0.wrapping_neg())
+    }
 }
 impl OffsetCol {
     pub const POS_ONE: OffsetCol = OffsetCol::new(1);
@@ -505,6 +425,9 @@ impl OffsetCol {
             true => Self::POS_ONE,
             false => Self::NEG_ONE,
         }
+    }
+    pub const fn reverse(self) -> Self {
+        OffsetCol(self.0.wrapping_neg())
     }
 }
 impl OffsetSquare {
@@ -578,28 +501,28 @@ mod local_arithmetic {
         fn mul_assign(&mut self, rhs: Col) {*self *= rhs.0}
     }
 
-    impl Shl<Square> for u64 {
-        type Output = u64;
-        fn shl(self, rhs: Square) -> Self::Output {
-            self << rhs.0
-        }
-    }
-    impl Shl<Row> for u64 {
-        type Output = u64;
-        fn shl(self, rhs: Row) -> Self::Output {
-            self << (rhs.0 * Square::COLS)
-        }
-    }
-    impl Shl<Col> for u64 {
-        type Output = u64;
-        fn shl(self, rhs: Col) -> Self::Output {
-            self << rhs.0
-        }
-    }
+    // impl Shl<Square> for u64 {
+    //     type Output = u64;
+    //     fn shl(self, rhs: Square) -> Self::Output {
+    //         self << rhs.0
+    //     }
+    // }
+    // impl Shl<Row> for u64 {
+    //     type Output = u64;
+    //     fn shl(self, rhs: Row) -> Self::Output {
+    //         self << (rhs.0 * Square::COLS)
+    //     }
+    // }
+    // impl Shl<Col> for u64 {
+    //     type Output = u64;
+    //     fn shl(self, rhs: Col) -> Self::Output {
+    //         self << rhs.0
+    //     }
+    // }
 }
 pub(crate) mod square_arithmetic {
     use super::{Square, OffsetSquare, OffsetRow, OffsetCol, Row, Col};
-    use super::{Add, AddAssign, Sub};
+    use super::{Add, AddAssign, Sub, Neg};
 
     impl Add<OffsetSquare> for Square {
         type Output = Option<Square>;
@@ -625,6 +548,15 @@ pub(crate) mod square_arithmetic {
         fn add_assign(&mut self, rhs: OffsetSquare) {
             self.0 = self.0
                 .wrapping_add(rhs.0)
+        }
+    }
+    impl Neg for OffsetSquare {
+        type Output = OffsetSquare;
+        fn neg(self) -> Self::Output {
+            OffsetSquare(
+                self.0
+                    .wrapping_neg()
+            )
         }
     }
 
@@ -825,5 +757,14 @@ impl Iterator for KingIterator {
 impl std::fmt::Display for Square {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.to_square_string().fmt(f)
+    }
+}
+
+pub(crate) mod square_macro {
+    macro_rules! square {
+        ($inner_literal:literal) => {
+            assert!($inner_literal < Square::MAX_SQUARES);
+            Square($inner_literal)
+        }
     }
 }

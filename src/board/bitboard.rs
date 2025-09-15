@@ -1,4 +1,7 @@
 use super::*;
+
+use std::ops::Shl;
+
 /// A bitboard is used to represent piece positions using a 64-bit number.
 pub type Bitboard = u64;
 pub trait BitboardExt{
@@ -41,34 +44,71 @@ pub trait BitboardExt{
     fn squares(self) -> BitboardIter;
     fn remove_square(&mut self, square: Square);
     fn add_square(&mut self, square: Square);
+    fn pop_highest_set_bit(&mut self) -> Option<Square>;
+    fn pop_lowest_set_bit(&mut self) -> Option<Square>;
+    fn bit_scan_forward(self) -> Option<Square>;
 }
 impl BitboardExt for Bitboard {
     fn new_bitboard() -> Bitboard {
         0
     }
     fn get_bitboard_from_row(row: Row) -> Self {
-        0x00000000000000FF << (row * Square::COLS)
+        0x00000000000000FF << row.as_left_bit_shift()
     }
     fn get_bitboard_from_col(col:Col) -> Self {
-        0x0101010101010101 << col
+        0x0101010101010101 << col.as_left_bit_shift()
     }
     fn square_in_bitboard(self, square: Square) -> bool {
-        (self & (1 << square)) != 0
+        (self & (1 << square.inner())) != 0
     }
     fn not_in_bitboard(self, square: Square) -> bool {
-        self & (1 << square) == 0
+        self & (1 << square.inner()) == 0
     }
     fn bitboard_is_square(self, square: Square) -> bool {
-        self == (1 << square)
+        self == (1 << square.inner())
     }
     fn squares(self) -> BitboardIter {
         BitboardIter{bitboard: self}
     }
     fn remove_square(&mut self, square: Square) {
-        *self &= ! (1 << square)
+        *self &= ! (1 << square.inner())
     }
     fn add_square(&mut self, square: Square) {
-        *self |= 1 << square
+        *self |= 1 << square.inner()
+    }
+    fn pop_highest_set_bit(&mut self) -> Option<Square> {
+        let index = self.leading_zeros() as u8;
+        match index {
+            Square::MAX_SQUARES.. => None,
+            valid_square => {
+                *self &= !(1 << valid_square);
+                Some(Square::from_inner(valid_square))
+            }
+        }
+    }
+    fn pop_lowest_set_bit(&mut self) -> Option<Square> {
+        let index = self.trailing_zeros() as u8;
+        match index {
+            Square::MAX_SQUARES.. => None,
+            valid_square => {
+                *self &= !(1 << valid_square);
+                Some(Square::from_inner(valid_square))
+            }
+        }
+    }
+    fn bit_scan_forward(self) -> Option<Square> {
+        let index = self.trailing_zeros() as u8;
+        match index {
+            Square::MAX_SQUARES.. => None,
+            valid_square => Some(Square::from_inner(valid_square))
+        }
+    }
+}
+
+impl Shl<Square> for Bitboard {
+    type Output = Self;
+    fn shl(self, rhs: Square) -> Self::Output {
+        self << rhs.inner()
     }
 }
 
@@ -78,18 +118,19 @@ pub struct BitboardIter {
 impl Iterator for BitboardIter {
     type Item = Square;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.bitboard == 0 {return None}
-
-        let next_square: Square = self.bitboard.trailing_zeros() as Square;
-        self.bitboard &= !(1 << next_square);
-
-        Some(next_square)
+        self.bitboard.pop_lowest_set_bit()
     }
 }
 
 #[cfg(test)]
 mod bitboard_tests {
     use super::*;
+
+    macro_rules! square {
+        ($i:expr) => {
+            Square::from_inner($i)
+        }
+    }
 
     #[test]
     fn test_new_bitboard_is_empty() {
@@ -100,7 +141,7 @@ mod bitboard_tests {
     #[test]
     fn test_add_and_remove_square() {
         let mut bb = Bitboard::new_bitboard();
-        let sq = 36; // e4
+        let sq = square!(36); // e4
         bb.add_square(sq);
         assert!(bb.square_in_bitboard(sq));
         assert_eq!(bb.count_ones(), 1);
@@ -113,7 +154,7 @@ mod bitboard_tests {
     #[test]
     fn test_not_in_bitboard() {
         let mut bb = Bitboard::new_bitboard();
-        let sq = 10;
+        let sq = square!(10);
         assert!(bb.not_in_bitboard(sq));
         bb.add_square(sq);
         assert!(!bb.not_in_bitboard(sq));
@@ -122,32 +163,32 @@ mod bitboard_tests {
     #[test]
     fn test_bitboard_iteration() {
         let mut bb = Bitboard::new_bitboard();
-        bb.add_square(0);
-        bb.add_square(7);
-        bb.add_square(63);
+        bb.add_square(square!(0));
+        bb.add_square(square!(7));
+        bb.add_square(square!(63));
 
         let squares: Vec<_> = bb.squares().collect();
-        assert_eq!(squares, vec![0, 7, 63]);
+        assert_eq!(squares, vec![square!(0), square!(7), square!(63)]);
     }
 
     #[test]
     fn test_bitwise_ops() {
         let mut a = Bitboard::new_bitboard();
         let mut b = Bitboard::new_bitboard();
-        a.add_square(0);
-        b.add_square(0);
-        b.add_square(1);
+        a.add_square(square!(0));
+        b.add_square(square!(0));
+        b.add_square(square!(1));
 
         let and_bb = a & b;
-        assert!(and_bb.square_in_bitboard(0));
-        assert!(!and_bb.square_in_bitboard(1));
+        assert!(and_bb.square_in_bitboard(square!(0)));
+        assert!(!and_bb.square_in_bitboard(square!(1)));
 
         let or_bb = a | b;
-        assert!(or_bb.square_in_bitboard(0));
-        assert!(or_bb.square_in_bitboard(1));
+        assert!(or_bb.square_in_bitboard(square!(0)));
+        assert!(or_bb.square_in_bitboard(square!(1)));
 
         let xor_bb = a ^ b;
-        assert!(!xor_bb.square_in_bitboard(0));
-        assert!(xor_bb.square_in_bitboard(1));
+        assert!(!xor_bb.square_in_bitboard(square!(0)));
+        assert!(xor_bb.square_in_bitboard(square!(1)));
     }
 }

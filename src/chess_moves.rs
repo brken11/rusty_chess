@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::fmt;
 use std::fmt::Display;
-
 use crate::board::pieces::{Color, Piece};
 use crate::board::{Row, Col, Square, OffsetRow, OffsetCol, OffsetSquare,
         square_arithmetic};
@@ -433,6 +432,45 @@ impl ChessMove {
                 )
             )),
         }
+    }
+    pub fn new_pawn_without_disambiguation(
+        board: &mut Board,
+        piece: Piece,
+        target: Square,
+        is_promotion: bool,
+    ) -> Result<ChessMove, MoveError> {
+        let is_capture =  board.get_piece_color_at(target)
+            .map_or(
+                false,
+                |color| {color != piece.get_color()}
+            );
+        let mut moves = Vec::with_capacity(2);
+        if is_capture {
+            let offset = piece.get_color()
+                .get_pawn_row_offset()
+                .reverse();
+            let origin_row = match target.get_row() + offset {
+                Some(row) => row,
+                None => return Err(MoveError::OriginNotFound(piece))
+            };
+            let mut test = |col_offset: i8, origin_row | {
+                let square = match target.get_col() + OffsetCol::new(col_offset) {
+                    None => { return }
+                    Some(col) => {
+                        Square::new(origin_row, col)
+                    }
+                };
+                let mut test_move = ChessMove::new(piece, square, target, MoveData::Capture);
+                match test_move.validate_move(board) {
+                    Ok(_) => {moves.push(test_move)}
+                    Err(_) => {}
+                }
+            };
+            test(1, origin_row);
+            test(-1, origin_row);
+        }
+        
+        Err(MoveError::IllegalPromotion)
     }
     pub fn new_from_squares(
         board: &mut Board,

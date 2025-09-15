@@ -10,9 +10,8 @@ pub mod bitboard;
 pub(crate) use pieces::Color;
 pub(crate) use castling_rights::{CastlingRights,CastlingRightsExt};
 pub use pieces::Piece;
-pub(crate) use square::Square as Square;
+pub(crate) use square::Square;
 pub(crate) use crate::board::bitboard::{Bitboard,BitboardExt,BitboardIter};
-pub(crate) use square::SquareExt;
 pub(crate) use square::OffsetSquare;
 pub(crate) use square::square_arithmetic;
 pub(crate) use crate::board::square::{Row, OffsetRow};
@@ -291,13 +290,8 @@ impl Board {
     ///
     /// `Some(Square)` if found, otherwise `None`.
     pub fn king_square_by_color(&self, color: Color) -> Option<Square> {
-        match match color {
-            Color::White => self.get_bitboard(Piece::WhiteKing).trailing_zeros() as Square,
-            Color::Black => self.get_bitboard(Piece::BlackKing).trailing_zeros() as Square,
-        } {
-            Square::MAX_SQUARES => None,
-            square => Some(square),
-        }
+        self.get_bitboard(color.get_king())
+            .pop_lowest_set_bit()
     }
 
     /// Is the king of a given color in check?
@@ -397,26 +391,61 @@ impl Board {
     ///
     /// A string representing the board layout.
     pub fn to_string(&self) -> String {
-        // Template symbols ┏┓╄┗┺┩┛╏╍╌╎└┘
-        let mut rendered_board = "┌╌╌╌┲╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┓\n".to_string();
-        for row in Square::iter_ranks() {
-            let square: Square = row * 8;// Compute the starting index for this rank
-            rendered_board.push_str(&format!(
-                "╎ {} ╏ {} {} {} {} {} {} {} {} ╏\n",
-                8 - row, //rank number
-                self.get_symbol_at(square),
-                self.get_symbol_at(square + 1),
-                self.get_symbol_at(square + 2),
-                self.get_symbol_at(square + 3),
-                self.get_symbol_at(square + 4),
-                self.get_symbol_at(square + 5),
-                self.get_symbol_at(square + 6),
-                self.get_symbol_at(square + 7)
-            ));
-        }
-        rendered_board.push_str("└╌╌╌╄╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┩\n");
-        rendered_board.push_str("    ╎ a b c d e f g h ╎\n");
-        rendered_board.push_str("    └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘");
+        // Template symbols ┏┓╄┗┺┩┛╏╍╌╎└┘┌
+        use std::fmt::Write;
+
+        /*@TODO Implement this! (With the correct math as some of the chars are 3 bytes large
+        // row_width = board_width + 2 * board_edge + rank_label + newline
+        // rank_label = rank_edge + rank_width + 2
+        // row_width = (Cols * 2 + 1) + 2 * (3) + ((3) + 1rw + 2) + (1)
+        // size = row_width * Rows + 4
+        // size = [(Cols * 2 + 1) + 2 + (3 + rw) + 1] * (Rows + 4)
+        // size = [2*Cols + 7 + rw] * (Rows + 4)
+        // const fn max_row_digits() -> usize {
+        //     let mut significant_digits = 0;
+        //     let mut magnitude_scalar = 1f64;
+        //     while magnitude_scalar < Board::ROWS as f64 {
+        //         significant_digits += 1;
+        //         magnitude_scalar *= 10f64;
+        //     }
+        //     significant_digits
+        // }
+        // const ROW_LABEL_WIDTH: usize = max_row_digits() + 3;
+        // const BOARD_STRING_WIDTH: usize = 2 * Board::COLS as usize + 7 + ROW_LABEL_WIDTH;
+        // const BOARD_STRING_SIZE: usize = (Board::ROWS as usize + 4) * BOARD_STRING_WIDTH;*/
+
+        // Layout fragments
+        const TOP_BORDER: &str = "┌╌╌╌┲╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┓\n";
+        const BOTTOM_BORDER: &str = "└╌╌╌╄╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍┩\n";
+        const FILE_LABELS: &str = "    ╎ a b c d e f g h ╎\n";
+        const FILE_FOOTER: &str = "    └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘";
+
+        // closure to append row data
+        let push_rank_line = |row: Row, out: &mut String| {
+            let rank = row.to_rank();
+            write!(out, "╎ {} ╏ ", rank).unwrap();
+
+            for col in Square::iter_cols() {
+                let square = Square::new(row, col);
+                write!(out, " {}", self.get_symbol_at(square)).unwrap();
+            }
+
+            out.push_str(" ╏\n");
+        };
+
+        let mut rendered_board = String::with_capacity(
+            Square::MAX_SQUARES as usize * 5
+                + Board::ROWS as usize * 10
+                + Board::COLS as usize * 15
+                + 32);
+
+        rendered_board.push_str(TOP_BORDER);
+        Square::iter_rows()
+            .for_each(|row| push_rank_line(row, &mut rendered_board));
+        rendered_board.push_str(BOTTOM_BORDER);
+        rendered_board.push_str(FILE_LABELS);
+        rendered_board.push_str(FILE_FOOTER);
+
         rendered_board
     }
 
@@ -438,7 +467,7 @@ impl Board {
         };
 
         fn captures_straight(board: &Board, distance: u8, square: Square, opponent: Color) -> Option<bool> {
-            if board.piece_locations & (1 << square) == 0 {
+            if board.piece_locations.not_in_bitboard(square) {
                 return None;
             }
             if let Some(piece)= board.get_colored_piece_at(square, opponent) {match piece{
@@ -454,7 +483,7 @@ impl Board {
             }
         }
         fn captures_diagonally(board: &Board, distance: u8, square: Square, opponent: Color, ascending_row: bool) -> Option<bool> {
-            if board.piece_locations & (1 << square) == 0 {
+            if board.piece_locations.not_in_bitboard(square) {
                 return None;
             }
             if let Some(piece)= board.get_colored_piece_at(square, opponent) {match piece{
